@@ -1,0 +1,21 @@
+name: my_project
+description: "A new Flutter project."
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+version: 1.0.0+1
+environment:
+  sdk: ^3.9.0
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.0.5   # Use the latest version available
+  image_picker: ^1.0.7 # Use the latest version from pub.dev
+  cupertino_icons: ^1.0.8
+  google_mlkit_text_recognition: ^0.15.0   # The latest version
+  fl_chart: ^0.66.2  # For charts and graphs
+  intl: ^0.19.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+flutter:
+  uses-material-design: true
