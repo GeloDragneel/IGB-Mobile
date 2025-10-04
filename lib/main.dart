@@ -83,13 +83,16 @@ class MyApp extends StatelessWidget {
         '/profile': (context) => ProfileScreen(),
         '/accountingPeriod': (context) => AccountingPeriodScreen(),
         '/reports': (context) => ReportsScreen(),
-        '/report_detail': (context) => ReportDetailScreen(reportName: ModalRoute.of(context)!.settings.arguments as String),
+        '/report_detail': (context) => ReportDetailScreen(
+          reportName: ModalRoute.of(context)!.settings.arguments as String,
+        ),
         '/trial_balance': (context) => TrialBalanceScreen(),
         '/summary': (context) => SummaryScreen(),
         '/general_ledger': (context) => GeneralLedgerScreen(),
         '/customer_ledger': (context) => CustomerLedgerScreen(),
         '/e_bir': (context) => EBirScreen(),
-        '/consolidated_report_detailed': (context) => ConsolidatedReportDetailedScreen(),
+        '/consolidated_report_detailed': (context) =>
+            ConsolidatedReportDetailedScreen(),
         '/purchase_report': (context) => PurchaseReportScreen(),
         '/sales_report': (context) => SalesReportScreen(),
         '/expense_report': (context) => ExpenseReportScreen(),
@@ -98,10 +101,13 @@ class MyApp extends StatelessWidget {
         '/bir2307': (context) => Bir2307Screen(),
         '/income_statement': (context) => IncomeStatementScreen(),
         '/annual_summary': (context) => AnnualSummaryScreen(),
-        '/annual_summary_comparative_income_statement': (context) => AnnualSummaryComparativeIncomeStatementScreen(),
+        '/annual_summary_comparative_income_statement': (context) =>
+            AnnualSummaryComparativeIncomeStatementScreen(),
         '/sales_journal': (context) => SalesJournalScreen(),
-        '/purchase_receipts_journal': (context) => PurchaseReceiptsJournalScreen(),
-        '/cash_disbursement_journal': (context) => CashDisbursementJournalScreen(),
+        '/purchase_receipts_journal': (context) =>
+            PurchaseReceiptsJournalScreen(),
+        '/cash_disbursement_journal': (context) =>
+            CashDisbursementJournalScreen(),
         '/transactions': (context) => TransactionsScreen(),
         '/account_payable': (context) => AccountPayableScreen(),
         '/account_receivable': (context) => AccountReceivableScreen(),
