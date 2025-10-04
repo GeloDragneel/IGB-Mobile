@@ -168,7 +168,6 @@ class _DashboardState extends State<Dashboard> {
                   ),
                 ),
               ),
-
               SizedBox(height: 20),
               SizedBox(
                 height: 200,
@@ -208,18 +207,9 @@ class _DashboardState extends State<Dashboard> {
                         sideTitles: SideTitles(
                           showTitles: true,
                           getTitlesWidget: (value, meta) {
-                            final months =
-                                data['monthlySales']
-                                    ?.map((m) => m['month'] as String)
-                                    .toList() ??
-                                [
-                                  'May 2025',
-                                  'Jun 2025',
-                                  'Jul 2025',
-                                  'Aug 2025',
-                                  'Sep 2025',
-                                  'Oct 2025',
-                                ];
+                            final months = data['monthlySales']
+                                ?.map((m) => m['month'] as String)
+                                .toList();
                             return Text(
                               months[value.toInt()],
                               style: TextStyle(
@@ -277,16 +267,263 @@ class _DashboardState extends State<Dashboard> {
                           x: index,
                           barRods: [
                             BarChartRodData(
-                              toY: sales > 0
-                                  ? sales
-                                  : [
-                                      50000,
-                                      45000,
-                                      55000,
-                                      60000,
-                                      52000,
-                                      65000,
-                                    ][index].toDouble(),
+                              toY: sales.toDouble(),
+                              gradient: LinearGradient(
+                                colors: [Colors.blue, Colors.lightBlueAccent],
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                              ),
+                              width: 15,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: 20),
+
+              Center(
+                child: Text(
+                  'Last 6 Months Purchases',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              SizedBox(height: 20),
+              SizedBox(
+                height: 200,
+                child: BarChart(
+                  BarChartData(
+                    alignment: BarChartAlignment.spaceAround,
+                    maxY: (data['maxPurchases'] is num)
+                        ? data['maxPurchases'].toDouble()
+                        : double.tryParse(data['maxPurchases'].toString()) ?? 0,
+
+                    barTouchData: BarTouchData(
+                      enabled: true,
+                      touchTooltipData: BarTouchTooltipData(
+                        tooltipBgColor: Colors.blueGrey,
+                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                          String formatted;
+                          double value = rod.toY;
+                          if (value >= 1000000) {
+                            formatted =
+                                '${(value / 1000000).toStringAsFixed(1)} M';
+                          } else if (value >= 1000) {
+                            formatted =
+                                '${(value / 1000).toStringAsFixed(0)} K';
+                          } else {
+                            formatted = value.toStringAsFixed(0);
+                          }
+                          return BarTooltipItem(
+                            formatted,
+                            TextStyle(color: Colors.white),
+                          );
+                        },
+                      ),
+                    ),
+                    titlesData: FlTitlesData(
+                      show: true,
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) {
+                            final months = data['monthlyPurchases']
+                                ?.map((m) => m['month'] as String)
+                                .toList();
+                            return Text(
+                              months[value.toInt()],
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) {
+                            String formatted;
+                            if (value >= 1000000) {
+                              formatted =
+                                  '${(value / 1000000).toStringAsFixed(1)}M';
+                            } else if (value >= 1000) {
+                              formatted =
+                                  '${(value / 1000).toStringAsFixed(0)}K';
+                            } else {
+                              formatted = value.toStringAsFixed(0);
+                            }
+                            return Text(
+                              '\$$formatted',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      topTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      rightTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                    ),
+                    gridData: FlGridData(show: false),
+                    borderData: FlBorderData(show: false),
+                    barGroups: List.generate(
+                      data['monthlyPurchases']?.length ?? 6,
+                      (index) {
+                        dynamic value =
+                            data['monthlyPurchases']?[index]['purchases'];
+                        double purchases = 0;
+                        if (value is num) {
+                          purchases = value.toDouble();
+                        } else if (value is String) {
+                          purchases = double.tryParse(value) ?? 0;
+                        }
+                        return BarChartGroupData(
+                          x: index,
+                          barRods: [
+                            BarChartRodData(
+                              toY: purchases.toDouble(),
+                              gradient: LinearGradient(
+                                colors: [Colors.blue, Colors.lightBlueAccent],
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                              ),
+                              width: 15,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: 20),
+
+              Center(
+                child: Text(
+                  'Last 6 Months Expenses',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              SizedBox(height: 20),
+              SizedBox(
+                height: 200,
+                child: BarChart(
+                  BarChartData(
+                    alignment: BarChartAlignment.spaceAround,
+                    maxY: (data['maxExpenses'] is num)
+                        ? data['maxExpenses'].toDouble()
+                        : double.tryParse(data['maxExpenses'].toString()) ?? 0,
+
+                    barTouchData: BarTouchData(
+                      enabled: true,
+                      touchTooltipData: BarTouchTooltipData(
+                        tooltipBgColor: Colors.blueGrey,
+                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                          String formatted;
+                          double value = rod.toY;
+                          if (value >= 1000000) {
+                            formatted =
+                                '${(value / 1000000).toStringAsFixed(1)} M';
+                          } else if (value >= 1000) {
+                            formatted =
+                                '${(value / 1000).toStringAsFixed(0)} K';
+                          } else {
+                            formatted = value.toStringAsFixed(0);
+                          }
+                          return BarTooltipItem(
+                            formatted,
+                            TextStyle(color: Colors.white),
+                          );
+                        },
+                      ),
+                    ),
+                    titlesData: FlTitlesData(
+                      show: true,
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) {
+                            final months = data['monthlyExpenses']
+                                ?.map((m) => m['month'] as String)
+                                .toList();
+                            return Text(
+                              months[value.toInt()],
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) {
+                            String formatted;
+                            if (value >= 1000000) {
+                              formatted =
+                                  '${(value / 1000000).toStringAsFixed(1)}M';
+                            } else if (value >= 1000) {
+                              formatted =
+                                  '${(value / 1000).toStringAsFixed(0)}K';
+                            } else {
+                              formatted = value.toStringAsFixed(0);
+                            }
+                            return Text(
+                              '\$$formatted',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      topTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      rightTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                    ),
+                    gridData: FlGridData(show: false),
+                    borderData: FlBorderData(show: false),
+                    barGroups: List.generate(
+                      data['monthlyExpenses']?.length ?? 6,
+                      (index) {
+                        dynamic value =
+                            data['monthlyExpenses']?[index]['expenses'];
+                        double purchases = 0;
+                        if (value is num) {
+                          purchases = value.toDouble();
+                        } else if (value is String) {
+                          purchases = double.tryParse(value) ?? 0;
+                        }
+                        return BarChartGroupData(
+                          x: index,
+                          barRods: [
+                            BarChartRodData(
+                              toY: purchases.toDouble(),
                               gradient: LinearGradient(
                                 colors: [Colors.blue, Colors.lightBlueAccent],
                                 begin: Alignment.bottomCenter,
