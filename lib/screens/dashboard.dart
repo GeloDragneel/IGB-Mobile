@@ -1,12 +1,80 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:provider/provider.dart';
 import '../widgets/navigation_drawer.dart';
+import '../providers/auth_provider.dart';
 
-class Dashboard extends StatelessWidget {
+class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
 
   @override
+  _DashboardState createState() => _DashboardState();
+}
+
+class _DashboardState extends State<Dashboard> {
+  Map<String, dynamic> data = {};
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchData();
+  }
+
+  Future<void> fetchData() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final response = await http.get(
+      Uri.parse(
+        'https://igb-fems.com/LIVE/mobile_php/dashboard.php?userId=${auth.userId}&from=${auth.fromDate}&to=${auth.toDate}',
+      ),
+    );
+    if (response.statusCode == 200) {
+      setState(() {
+        data = json.decode(response.body);
+        isLoading = false;
+      });
+    } else {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  /// Helper to format large numbers like 200000 -> 200K
+  String formatNumber(dynamic number) {
+    if (number == null) return '0';
+
+    double value = 0;
+
+    if (number is int || number is double) {
+      value = number.toDouble();
+    } else if (number is String) {
+      value = double.tryParse(number) ?? 0;
+    }
+
+    if (value >= 1e9) {
+      return '${(value / 1e9).toStringAsFixed(1)}B';
+    } else if (value >= 1e6) {
+      return '${(value / 1e6).toStringAsFixed(1)}M';
+    } else if (value >= 1e3) {
+      return '${(value / 1e3).toStringAsFixed(1)}K';
+    } else {
+      return value.toStringAsFixed(0);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: Text('Dashboard')),
+        drawer: AppDrawer(selectedIndex: 0),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: Text('Dashboard')),
       drawer: AppDrawer(selectedIndex: 0),
@@ -16,14 +84,17 @@ class Dashboard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Dashboard Overview',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+              Center(
+                child: Text(
+                  'Dashboard Overview',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
+
               SizedBox(height: 20),
               // Summary Cards
               Row(
@@ -31,16 +102,15 @@ class Dashboard extends StatelessWidget {
                   Expanded(
                     child: _buildSummaryCard(
                       'Total Sales',
-                      'P25,000',
-                      Icons.attach_money,
+                      formatNumber(data['totalSales']),
+                      Icons.bar_chart,
                     ),
                   ),
-                  SizedBox(width: 16),
                   SizedBox(width: 16),
                   Expanded(
                     child: _buildSummaryCard(
                       'Total Purchases',
-                      'P15,000',
+                      formatNumber(data['totalPurchases']),
                       Icons.shopping_cart,
                     ),
                   ),
@@ -52,48 +122,109 @@ class Dashboard extends StatelessWidget {
                   Expanded(
                     child: _buildSummaryCard(
                       'Total Expenses',
-                      'P5,000',
+                      formatNumber(data['totalExpenses']),
                       Icons.receipt,
                     ),
                   ),
                   SizedBox(width: 16),
                   Expanded(
-                    child: _buildSummaryCard('Customers', '150', Icons.people),
+                    child: _buildSummaryCard(
+                      'Customers',
+                      formatNumber(data['NoOfCustomer']),
+                      Icons.people,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildSummaryCard(
+                      'Vendors',
+                      formatNumber(data['noOfVendors']),
+                      Icons.business,
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: _buildSummaryCard(
+                      'Scanned',
+                      formatNumber(data['totalScanned']),
+                      Icons.qr_code_scanner,
+                    ),
                   ),
                 ],
               ),
               SizedBox(height: 20),
-              Text(
-                'Monthly Sales Chart',
-                style: TextStyle(fontSize: 18, color: Colors.white),
+
+              Center(
+                child: Text(
+                  'Last 6 Months Sales',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
               ),
-              SizedBox(height: 10),
+
+              SizedBox(height: 20),
               SizedBox(
                 height: 200,
                 child: BarChart(
                   BarChartData(
                     alignment: BarChartAlignment.spaceAround,
-                    maxY: 10000,
-                    barTouchData: BarTouchData(enabled: false),
+                    maxY: (data['maxSales'] is num)
+                        ? data['maxSales'].toDouble()
+                        : double.tryParse(data['maxSales'].toString()) ?? 0,
+
+                    barTouchData: BarTouchData(
+                      enabled: true,
+                      touchTooltipData: BarTouchTooltipData(
+                        tooltipBgColor: Colors.blueGrey,
+                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                          String formatted;
+                          double value = rod.toY;
+                          if (value >= 1000000) {
+                            formatted =
+                                '${(value / 1000000).toStringAsFixed(1)} M';
+                          } else if (value >= 1000) {
+                            formatted =
+                                '${(value / 1000).toStringAsFixed(0)} K';
+                          } else {
+                            formatted = value.toStringAsFixed(0);
+                          }
+                          return BarTooltipItem(
+                            formatted,
+                            TextStyle(color: Colors.white),
+                          );
+                        },
+                      ),
+                    ),
                     titlesData: FlTitlesData(
                       show: true,
                       bottomTitles: AxisTitles(
                         sideTitles: SideTitles(
                           showTitles: true,
                           getTitlesWidget: (value, meta) {
-                            const months = [
-                              'Jan',
-                              'Feb',
-                              'Mar',
-                              'Apr',
-                              'May',
-                              'Jun',
-                            ];
+                            final months =
+                                data['monthlySales']
+                                    ?.map((m) => m['month'] as String)
+                                    .toList() ??
+                                [
+                                  'May 2025',
+                                  'Jun 2025',
+                                  'Jul 2025',
+                                  'Aug 2025',
+                                  'Sep 2025',
+                                  'Oct 2025',
+                                ];
                             return Text(
                               months[value.toInt()],
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 12,
+                                fontSize: 10,
                               ),
                             );
                           },
@@ -103,8 +234,18 @@ class Dashboard extends StatelessWidget {
                         sideTitles: SideTitles(
                           showTitles: true,
                           getTitlesWidget: (value, meta) {
+                            String formatted;
+                            if (value >= 1000000) {
+                              formatted =
+                                  '${(value / 1000000).toStringAsFixed(1)}M';
+                            } else if (value >= 1000) {
+                              formatted =
+                                  '${(value / 1000).toStringAsFixed(0)}K';
+                            } else {
+                              formatted = value.toStringAsFixed(0);
+                            }
                             return Text(
-                              '\$${value.toInt()}',
+                              '\$$formatted',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,
@@ -122,96 +263,46 @@ class Dashboard extends StatelessWidget {
                     ),
                     gridData: FlGridData(show: false),
                     borderData: FlBorderData(show: false),
-                    barGroups: [
-                      BarChartGroupData(
-                        x: 0,
-                        barRods: [
-                          BarChartRodData(toY: 5000, color: Colors.blue),
-                        ],
-                      ),
-                      BarChartGroupData(
-                        x: 1,
-                        barRods: [
-                          BarChartRodData(toY: 7000, color: Colors.blue),
-                        ],
-                      ),
-                      BarChartGroupData(
-                        x: 2,
-                        barRods: [
-                          BarChartRodData(toY: 6000, color: Colors.blue),
-                        ],
-                      ),
-                      BarChartGroupData(
-                        x: 3,
-                        barRods: [
-                          BarChartRodData(toY: 8000, color: Colors.blue),
-                        ],
-                      ),
-                      BarChartGroupData(
-                        x: 4,
-                        barRods: [
-                          BarChartRodData(toY: 9000, color: Colors.blue),
-                        ],
-                      ),
-                      BarChartGroupData(
-                        x: 5,
-                        barRods: [
-                          BarChartRodData(toY: 7500, color: Colors.blue),
-                        ],
-                      ),
-                    ],
+                    barGroups: List.generate(
+                      data['monthlySales']?.length ?? 6,
+                      (index) {
+                        dynamic value = data['monthlySales']?[index]['sales'];
+                        double sales = 0;
+                        if (value is num) {
+                          sales = value.toDouble();
+                        } else if (value is String) {
+                          sales = double.tryParse(value) ?? 0;
+                        }
+                        return BarChartGroupData(
+                          x: index,
+                          barRods: [
+                            BarChartRodData(
+                              toY: sales > 0
+                                  ? sales
+                                  : [
+                                      50000,
+                                      45000,
+                                      55000,
+                                      60000,
+                                      52000,
+                                      65000,
+                                    ][index].toDouble(),
+                              gradient: LinearGradient(
+                                colors: [Colors.blue, Colors.lightBlueAccent],
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                              ),
+                              width: 15,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
               SizedBox(height: 20),
-              Text(
-                'Quick Actions',
-                style: TextStyle(fontSize: 18, color: Colors.white),
-              ),
-              SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildActionCard(
-                      context,
-                      'Sales',
-                      Icons.attach_money,
-                      '/sales',
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: _buildActionCard(
-                      context,
-                      'Purchases',
-                      Icons.shopping_cart,
-                      '/purchases',
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildActionCard(
-                      context,
-                      'Expenses',
-                      Icons.receipt,
-                      '/expenses',
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: _buildActionCard(
-                      context,
-                      'Scan',
-                      Icons.qr_code_scanner,
-                      '/scan',
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         ),
@@ -239,30 +330,6 @@ class Dashboard extends StatelessWidget {
             SizedBox(height: 4),
             Text(title, style: TextStyle(color: Colors.white70, fontSize: 12)),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionCard(
-    BuildContext context,
-    String title,
-    IconData icon,
-    String route,
-  ) {
-    return Card(
-      color: Color(0xFF101222),
-      child: InkWell(
-        onTap: () => Navigator.pushNamed(context, route),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              Icon(icon, size: 32, color: Colors.white),
-              SizedBox(height: 8),
-              Text(title, style: TextStyle(color: Colors.white, fontSize: 14)),
-            ],
-          ),
         ),
       ),
     );

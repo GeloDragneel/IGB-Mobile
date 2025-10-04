@@ -22,18 +22,6 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Container(
           width: 400,
           padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: const Color(0xFF101222),
-            // borderRadius: BorderRadius.circular(16),
-            // border: Border.all(color: const Color(0xFF23243a), width: 1), // REMOVED
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.13),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
           child: Form(
             key: _formKey,
             child: Column(

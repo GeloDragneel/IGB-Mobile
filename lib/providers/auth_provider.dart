@@ -9,6 +9,10 @@ class AuthProvider extends ChangeNotifier {
   String _fullName = '';
   String _branchCode = '';
   String _userId = '';
+  String _fromDate = '';
+  String _toDate = '';
+  String _branchType = '';
+  String _clientNum = '';
 
   bool get isLoggedIn => _isLoggedIn;
   String get username => _username;
@@ -16,6 +20,20 @@ class AuthProvider extends ChangeNotifier {
   String get fullName => _fullName;
   String get branchCode => _branchCode;
   String get userId => _userId;
+  String get fromDate => _fromDate;
+  String get toDate => _toDate;
+  String get branchType => _branchType;
+  String get clientNum => _clientNum;
+
+  set fromDate(String value) {
+    _fromDate = value;
+    notifyListeners();
+  }
+
+  set toDate(String value) {
+    _toDate = value;
+    notifyListeners();
+  }
 
   Future<String> login(String username, String password) async {
     final url = Uri.parse('https://igb-fems.com/LIVE/mobile_php/login.php');
@@ -44,6 +62,10 @@ class AuthProvider extends ChangeNotifier {
           _fullName = data['fullName'] ?? '';
           _branchCode = data['branchCode'] ?? '';
           _userId = data['userId'] ?? '';
+          _fromDate = data['fromDate'] ?? '';
+          _toDate = data['toDate'] ?? '';
+          _branchType = data['branchType'] ?? '';
+          _clientNum = data['clientNum'] ?? '';
           notifyListeners();
         }
         return result; // can be Success, NotCorrect, ResetPassword, etc.
@@ -64,6 +86,10 @@ class AuthProvider extends ChangeNotifier {
     _fullName = '';
     _branchCode = '';
     _userId = '';
+    _fromDate = '';
+    _toDate = '';
+    _branchType = '';
+    _clientNum = '';
     notifyListeners();
   }
 }

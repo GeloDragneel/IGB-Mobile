@@ -57,6 +57,15 @@ class AppDrawer extends StatelessWidget {
             },
           ),
           ListTile(
+            leading: Icon(Icons.report, color: Colors.white),
+            title: Text('Reports', style: TextStyle(color: Colors.white)),
+            selected: selectedIndex == 6,
+            selectedTileColor: Color(0xFF101222),
+            onTap: () {
+              Navigator.pushReplacementNamed(context, '/reports');
+            },
+          ),
+          ListTile(
             leading: Icon(Icons.person, color: Colors.white),
             title: Text('Profile', style: TextStyle(color: Colors.white)),
             selected: selectedIndex == 1,

@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart'; // ✅ Required for Provider
-import '../providers/auth_provider.dart'; // ✅ Make sure the path is correct
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
 
-class AccountingPeriodScreen extends StatefulWidget {
-  const AccountingPeriodScreen({super.key});
+class ConsolidatedReportDetailedScreen extends StatefulWidget {
+  const ConsolidatedReportDetailedScreen({super.key});
 
   @override
-  State<AccountingPeriodScreen> createState() => _AccountingPeriodScreenState();
+  State<ConsolidatedReportDetailedScreen> createState() =>
+      _ConsolidatedReportDetailedScreenState();
 }
 
-class _AccountingPeriodScreenState extends State<AccountingPeriodScreen> {
+class _ConsolidatedReportDetailedScreenState
+    extends State<ConsolidatedReportDetailedScreen> {
   DateTime? _dateFrom;
   DateTime? _dateTo;
-
-  String? _currentSession;
 
   @override
   void didChangeDependencies() {
@@ -64,78 +64,18 @@ class _AccountingPeriodScreenState extends State<AccountingPeriodScreen> {
     }
   }
 
-  void _createSession() {
-    if (_dateFrom == null || _dateTo == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Please select both dates")));
-      return;
-    }
-
-    final formattedFrom = DateFormat("yyyy-MM").format(_dateFrom!);
-    final formattedTo = DateFormat("yyyy-MM").format(_dateTo!);
-
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    auth.fromDate = formattedFrom;
-    auth.toDate = formattedTo;
-
-    final displayFrom = DateFormat("MMM yyyy").format(_dateFrom!);
-    final displayTo = DateFormat("MMM yyyy").format(_dateTo!);
-
-    setState(() {
-      _currentSession = "$displayFrom → $displayTo";
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Session created: $_currentSession")),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final auth = Provider.of<AuthProvider>(context);
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Accounting Period')),
-      drawer: AppDrawer(selectedIndex: 2),
+      appBar: AppBar(title: const Text('Consolidated Report (Detailed)')),
+      drawer: AppDrawer(selectedIndex: 6),
       backgroundColor: const Color(0xFF121826),
-      body: Center(
+      body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (auth.fromDate.isNotEmpty && auth.toDate.isNotEmpty)
-                Column(
-                  children: [
-                    Icon(
-                      Icons.calendar_month,
-                      size: 80, // Big icon size
-                      color: const Color(0xFF8f72ec),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      "Accounting Period:",
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      "${DateFormat("MMM yyyy").format(DateTime.parse("${auth.fromDate}-01"))} - "
-                      "${DateFormat("MMM yyyy").format(DateTime.parse("${auth.toDate}-01"))}",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                  ],
-                ),
-
               GestureDetector(
                 onTap: () => _pickDate(isFrom: true),
                 child: Container(
@@ -183,7 +123,27 @@ class _AccountingPeriodScreenState extends State<AccountingPeriodScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _createSession,
+                  onPressed: () {
+                    if (_dateFrom == null || _dateTo == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Please select both dates"),
+                        ),
+                      );
+                      return;
+                    }
+                    final displayFrom = DateFormat(
+                      "MMM yyyy",
+                    ).format(_dateFrom!);
+                    final displayTo = DateFormat("MMM yyyy").format(_dateTo!);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Generating Trial Balance from $displayFrom to $displayTo',
+                        ),
+                      ),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF8f72ec),
                     foregroundColor: Colors.white,
@@ -192,7 +152,7 @@ class _AccountingPeriodScreenState extends State<AccountingPeriodScreen> {
                       horizontal: 24,
                     ),
                   ),
-                  child: const Text("Create Session"),
+                  child: const Text("Generate Report"),
                 ),
               ),
             ],
