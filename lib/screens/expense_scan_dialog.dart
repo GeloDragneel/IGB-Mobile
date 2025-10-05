@@ -26,7 +26,6 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
   String _combinedText = '';
   List<Map<String, String>> _accounts = [];
   String? _selectedAccountCode;
-  bool _isLoadingAccounts = false;
 
   @override
   void initState() {
@@ -35,10 +34,6 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
   }
 
   Future<void> _fetchAccounts() async {
-    setState(() {
-      _isLoadingAccounts = true;
-    });
-
     try {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final response = await http.get(
@@ -65,11 +60,7 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
       }
     } catch (e) {
       // Handle error silently or show message
-    } finally {
-      setState(() {
-        _isLoadingAccounts = false;
-      });
-    }
+    } finally {}
   }
 
   Future<void> _scanReceipt() async {

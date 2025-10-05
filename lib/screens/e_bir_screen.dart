@@ -19,7 +19,6 @@ class _EBirScreenState extends State<EBirScreen> {
   bool _isLoading = false;
   List<Map<String, dynamic>> _invoices = [];
 
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -234,7 +233,9 @@ class _EBirScreenState extends State<EBirScreen> {
 
   List<DataRow> _buildRows() {
     if (_invoices.length <= 1) return [];
-    final numColumns = _invoices[0].keys.where((k) => k.startsWith('column_')).length;
+    final numColumns = _invoices[0].keys
+        .where((k) => k.startsWith('column_'))
+        .length;
     return _invoices.skip(1).map((invoice) {
       return DataRow(
         cells: List.generate(numColumns, (i) {
@@ -257,29 +258,22 @@ class _EBirScreenState extends State<EBirScreen> {
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: DataTable(
-            border: TableBorder.all(
-              color: Colors.grey.shade600,
-              width: 1,
-            ),
+            border: TableBorder.all(color: Colors.grey.shade600, width: 1),
             columnSpacing: 15,
             dataRowMinHeight: 30,
             dataRowMaxHeight: 30,
             headingRowHeight: 30,
             columns: _buildColumns(),
             rows: _buildRows(),
-            headingRowColor: WidgetStateProperty.all(
-              const Color(0xFF8f72ec),
-            ),
-            dataRowColor: WidgetStateProperty.resolveWith<Color?>(
-              (Set<WidgetState> states) {
-                if (states.contains(WidgetState.selected)) {
-                  return const Color(
-                    0xFF1e2235,
-                  ).withValues(alpha: 0.5);
-                }
-                return const Color(0xFF1e2235);
-              },
-            ),
+            headingRowColor: WidgetStateProperty.all(const Color(0xFF8f72ec)),
+            dataRowColor: WidgetStateProperty.resolveWith<Color?>((
+              Set<WidgetState> states,
+            ) {
+              if (states.contains(WidgetState.selected)) {
+                return const Color(0xFF1e2235).withValues(alpha: 0.5);
+              }
+              return const Color(0xFF1e2235);
+            }),
           ),
         ),
       ),
