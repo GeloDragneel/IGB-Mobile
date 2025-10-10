@@ -13,6 +13,7 @@ class AuthProvider extends ChangeNotifier {
   String _toDate = '';
   String _branchType = '';
   String _clientNum = '';
+  String _tin = '';
 
   bool get isLoggedIn => _isLoggedIn;
   String get username => _username;
@@ -24,6 +25,7 @@ class AuthProvider extends ChangeNotifier {
   String get toDate => _toDate;
   String get branchType => _branchType;
   String get clientNum => _clientNum;
+  String get tin => _tin;
 
   set fromDate(String value) {
     _fromDate = value;
@@ -32,6 +34,16 @@ class AuthProvider extends ChangeNotifier {
 
   set toDate(String value) {
     _toDate = value;
+    notifyListeners();
+  }
+
+  set tradeName(String value) {
+    _tradeName = value;
+    notifyListeners();
+  }
+
+  set fullName(String value) {
+    _fullName = value;
     notifyListeners();
   }
 
@@ -66,6 +78,7 @@ class AuthProvider extends ChangeNotifier {
           _toDate = data['toDate'] ?? '';
           _branchType = data['branchType'] ?? '';
           _clientNum = data['clientNum'] ?? '';
+          _tin = data['TIN'] ?? '';
           notifyListeners();
         }
         return result; // can be Success, NotCorrect, ResetPassword, etc.
@@ -90,6 +103,7 @@ class AuthProvider extends ChangeNotifier {
     _toDate = '';
     _branchType = '';
     _clientNum = '';
+    _tin = '';
     notifyListeners();
   }
 }

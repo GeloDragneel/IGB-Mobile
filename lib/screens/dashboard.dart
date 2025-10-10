@@ -235,7 +235,7 @@ class _DashboardState extends State<Dashboard> {
                               formatted = value.toStringAsFixed(0);
                             }
                             return Text(
-                              '\$$formatted',
+                              '\₱$formatted',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,
@@ -362,7 +362,7 @@ class _DashboardState extends State<Dashboard> {
                               formatted = value.toStringAsFixed(0);
                             }
                             return Text(
-                              '\$$formatted',
+                              '\₱$formatted',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,
@@ -490,7 +490,7 @@ class _DashboardState extends State<Dashboard> {
                               formatted = value.toStringAsFixed(0);
                             }
                             return Text(
-                              '\$$formatted',
+                              '\₱$formatted',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,
