@@ -1,10 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
+import 'package:http_parser/http_parser.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  List<Map<String, dynamic>> documents = [];
+
+  @override
+  void initState() {
+    super.initState();
+    fetchDocuments();
+  }
+
+  Future<void> fetchDocuments() async {
+    final response = await http.get(
+      Uri.parse('https://igb-fems.com/LIVE/mobile_php/documents.php'),
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['result'] == 'Success') {
+        setState(() {
+          documents = List<Map<String, dynamic>>.from(data['invoices']);
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -241,228 +272,27 @@ class ProfileScreen extends StatelessWidget {
                   horizontal: 2,
                   vertical: 8,
                 ),
-                children: [
-                  ListTile(
+                children: documents.map((doc) {
+                  return ListTile(
                     leading: const Icon(
                       Icons.file_copy_rounded,
                       color: Colors.white70,
                     ),
-                    title: const Text(
-                      'BIR Certificate of Registration 2025',
-                      style: TextStyle(
+                    title: Text(
+                      doc['DocumentName'],
+                      style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     onTap: () => _showDocumentImage(
                       context,
-                      'BIR Certificate of Registration 2025',
-                      'https://www.taxumo.com/wp-content/uploads/2025/01/Title-Page-2-2.png',
+                      doc['DocumentName'],
+                      'https://igb-fems.com/LIVE/images/Documents/${auth.comId}-${doc['ID']}.webp?v=${DateTime.now().millisecondsSinceEpoch}', // Using timestamp as version
+                      doc['ID'],
                     ),
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.file_copy_rounded,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      'SEC Articles of Incorporation',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    onTap: () => _showDocumentImage(
-                      context,
-                      'SEC Articles of Incorporation',
-                      'https://www.kmbi.org.ph/images/KMBI-Articles-of-Incorporation_Page_1.jpg',
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.file_copy_rounded,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      'DTI Business Name Renewal',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    onTap: () => _showDocumentImage(
-                      context,
-                      'DTI Business Name Renewal',
-                      'https://www.pdffiller.com/preview/30/608/30608888/large.png',
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.file_copy_rounded,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      'Employee Contract',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    onTap: () => _showDocumentImage(
-                      context,
-                      'Employee Contract',
-                      'https://imgv2-2-f.scribdassets.com/img/document/394115455/original/da167a9b76/1?v=1',
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.file_copy_rounded,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      'January 2025 Financial Report',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    onTap: () => _showDocumentImage(
-                      context,
-                      'January 2025 Financial Report',
-                      'https://amplify.business/wp-content/smush-webp/2025/03/Hot_Sauce_Example_Report___Hot_Sauce_Example__Jan_2025___2_-images-8-scaled.jpg.webp',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 5),
-            Card(
-              color: const Color(0xFF1e293b),
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ExpansionTile(
-                title: const Text(
-                  'Categories',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                iconColor: Colors.white,
-                collapsedIconColor: Colors.white,
-                childrenPadding: const EdgeInsets.symmetric(
-                  horizontal: 2,
-                  vertical: 8,
-                ),
-                children: [
-                  ListTile(
-                    leading: const Icon(
-                      Icons.file_copy_rounded,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      'BIR',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.file_copy_rounded,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      'SEC',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.file_copy_rounded,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      'DTI',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.file_copy_rounded,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      "Mayor's Permit",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.file_copy_rounded,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      "Employee Records",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.file_copy_rounded,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      "Accounting",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.file_copy_rounded,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      "Operations",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.file_copy_rounded,
-                      color: Colors.white70,
-                    ),
-                    title: const Text(
-                      "Others",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
+                  );
+                }).toList(),
               ),
             ),
           ],
@@ -471,22 +301,24 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  static void _showDocumentImage(
+  void _showDocumentImage(
     BuildContext context,
     String title,
     String imageUrl,
+    String id,
   ) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.zero,
           child: Container(
-            width: double.infinity,
-            height: 500,
+            width: MediaQuery.of(context).size.width,
+            height: MediaQuery.of(context).size.height,
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.zero,
             ),
             child: Column(
               children: [
@@ -495,10 +327,7 @@ class ProfileScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(16),
                   decoration: const BoxDecoration(
                     color: Color(0xFF1e293b),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(16),
-                      topRight: Radius.circular(16),
-                    ),
+                   
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -531,10 +360,20 @@ class ProfileScreen extends StatelessWidget {
                         return const Center(child: CircularProgressIndicator());
                       },
                       errorBuilder: (context, error, stackTrace) {
-                        return const Center(
-                          child: Text('Failed to load image'),
-                        );
+                        return Center(child: Text('Failed to load image'));
                       },
+                    ),
+                  ),
+                ),
+                // Upload Button at bottom
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  child: ElevatedButton.icon(
+                    onPressed: () => _uploadImage(context, id, title, imageUrl),
+                    icon: const Icon(Icons.upload),
+                    label: const Text('Change/Upload Image'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 50),
                     ),
                   ),
                 ),
@@ -544,5 +383,86 @@ class ProfileScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _uploadImage(
+    BuildContext context,
+    String id,
+    String title,
+    String imageUrl,
+  ) async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final filename = '${auth.comId}-$id.webp';
+
+      // Show loading
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Uploading image...')));
+
+      try {
+        // Read image bytes
+        final bytes = await image.readAsBytes();
+
+        // Create multipart request
+        final request = http.MultipartRequest(
+          'POST',
+          Uri.parse('https://igb-fems.com/LIVE/mobile_php/upload_document.php'),
+        );
+
+        // Add file
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'file',
+            bytes,
+            filename: filename,
+            contentType: MediaType('image', 'webp'),
+          ),
+        );
+
+        // Add other fields if needed
+        request.fields['comId'] = auth.comId;
+        request.fields['id'] = id;
+
+        // Send request
+        final response = await request.send();
+        final responseBody = await response.stream.bytesToString();
+
+        if (response.statusCode == 200) {
+          final responseData = json.decode(responseBody);
+          if (responseData['success'] == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Image uploaded successfully')),
+            );
+            // Close the dialog and reopen it to refresh the image
+            Navigator.of(context).pop();
+            // Reopen the dialog with the updated image
+            Future.delayed(const Duration(milliseconds: 500), () {
+              _showDocumentImage(context, title, imageUrl, id);
+            });
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Upload failed: ${responseData['error'] ?? 'Unknown error'}',
+                ),
+              ),
+            );
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('HTTP ${response.statusCode}: $responseBody'),
+            ),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
   }
 }
