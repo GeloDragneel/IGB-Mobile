@@ -2,13 +2,17 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:google_mlkit_document_scanner/google_mlkit_document_scanner.dart'
+    as doc_scanner;
 import 'package:provider/provider.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'dart:convert';
 import '../providers/scan_provider.dart';
 import '../providers/auth_provider.dart';
+import 'package:http_parser/http_parser.dart';
 
 class PurchaseScanDialog extends StatefulWidget {
   final VoidCallback? onUploadSuccess;
@@ -26,6 +30,121 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
   String _combinedText = '';
 
   Future<void> _scanReceipt() async {
+    final documentScanner = doc_scanner.DocumentScanner(
+      options: doc_scanner.DocumentScannerOptions(
+        pageLimit: 10, // Allow batch scanning up to 10 pages
+      ),
+    );
+
+    try {
+      final result = await documentScanner.scanDocument();
+      if (result.images.isNotEmpty) {
+        setState(() {
+          _images = result.images.map((path) => File(path)).toList();
+          _isProcessing = true;
+        });
+        await _performOCR(_images);
+      }
+    } catch (e) {
+      // Fallback to manual camera + crop if document scanner fails
+      await _fallbackScanReceipt();
+    } finally {
+      documentScanner.close();
+    }
+  }
+
+  Future<void> _selectFromGallery() async {
+    final picker = ImagePicker();
+    final pickedFiles = await picker.pickMultiImage(
+      imageQuality: 100,
+      maxWidth: 1920,
+      maxHeight: 1080,
+    );
+
+    if (pickedFiles.isNotEmpty) {
+      List<File> selectedImages = [];
+
+      for (var pickedFile in pickedFiles) {
+        // Optional: Crop each selected image
+        final croppedFile = await ImageCropper().cropImage(
+          sourcePath: pickedFile.path,
+        );
+        if (croppedFile != null) {
+          selectedImages.add(File(croppedFile.path));
+        } else {
+          selectedImages.add(File(pickedFile.path));
+        }
+      }
+
+      if (selectedImages.isNotEmpty) {
+        setState(() {
+          _images = selectedImages;
+          _isProcessing = true;
+        });
+        await _performOCR(_images);
+      }
+    }
+  }
+
+  Future<void> _batchCameraScan() async {
+    final documentScanner = doc_scanner.DocumentScanner(
+      options: doc_scanner.DocumentScannerOptions(
+        pageLimit: 10, // Allow batch scanning up to 10 pages
+      ),
+    );
+
+    try {
+      final result = await documentScanner.scanDocument();
+      if (result.images.isNotEmpty) {
+        setState(() {
+          _images = result.images.map((path) => File(path)).toList();
+          _isProcessing = true;
+        });
+        await _performOCR(_images);
+      }
+    } catch (e) {
+      // Fallback to manual batch camera scan
+      await _fallbackBatchCameraScan();
+    } finally {
+      documentScanner.close();
+    }
+  }
+
+  Future<void> _fallbackBatchCameraScan() async {
+    final picker = ImagePicker();
+    List<File> selectedImages = [];
+
+    bool takeMore = true;
+    while (takeMore) {
+      final picked = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 100,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      );
+      if (picked != null) {
+        final croppedFile = await ImageCropper().cropImage(
+          sourcePath: picked.path,
+        );
+        if (croppedFile != null) {
+          selectedImages.add(File(croppedFile.path));
+        }
+        takeMore = await _askTakeMore();
+      } else {
+        takeMore = false;
+      }
+    }
+
+    if (selectedImages.isNotEmpty) {
+      setState(() {
+        _images = selectedImages;
+        _isProcessing = true;
+      });
+      await _performOCR(_images);
+    }
+  }
+
+  Future<void> _fallbackScanReceipt() async {
     final picker = ImagePicker();
     List<File> selectedImages = [];
 
@@ -38,7 +157,13 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
         maxHeight: 1080,
       );
       if (picked != null) {
-        selectedImages.add(File(picked.path));
+        // Crop the image
+        final croppedFile = await ImageCropper().cropImage(
+          sourcePath: picked.path,
+        );
+        if (croppedFile != null) {
+          selectedImages.add(File(croppedFile.path));
+        }
         // Ask if want to take more
         takeMore = await _askTakeMore();
       } else {
@@ -124,40 +249,70 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
       _isUploading = true;
     });
 
-    final pdf = pw.Document();
-    final texts = combinedText.split('\n\n--- Next Receipt ---\n\n');
-
-    for (int i = 0; i < imageFiles.length; i++) {
-      final imageFile = imageFiles[i];
-      final imageBytes = await imageFile.readAsBytes();
-      final image = pw.MemoryImage(imageBytes);
-
-      pdf.addPage(
-        pw.Page(
-          build: (pw.Context context) {
-            return pw.Column(
-              children: [
-                pw.Image(image),
-                pw.Text(texts[i], style: pw.TextStyle(fontSize: 12)),
-              ],
-            );
-          },
-        ),
-      );
-    }
-
-    // Save PDF to temp directory
-    final output = await getTemporaryDirectory();
-    final pdfFile = File('${output.path}/receipts.pdf');
-    await pdfFile.writeAsBytes(await pdf.save());
-
-    // Check if PDF was created
-    if (!await pdfFile.exists()) {
-      throw Exception('PDF file was not created');
-    }
-
-    // Upload PDF and text
     try {
+      final pdf = pw.Document();
+      final texts = combinedText.split('\n\n--- Next Receipt ---\n\n');
+
+      for (int i = 0; i < imageFiles.length; i++) {
+        final imageFile = imageFiles[i];
+        final imageBytes = await imageFile.readAsBytes();
+        final image = pw.MemoryImage(imageBytes);
+
+        pdf.addPage(
+          pw.Page(
+            build: (pw.Context context) {
+              return pw.Column(
+                children: [
+                  pw.Image(image),
+                  pw.SizedBox(height: 10),
+                  pw.Text(texts[i], style: pw.TextStyle(fontSize: 12)),
+                ],
+              );
+            },
+          ),
+        );
+      }
+
+      // Save PDF to temp directory
+      final output = await getTemporaryDirectory();
+      final pdfFile = File(
+        '${output.path}/receipts_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      );
+
+      // Get PDF bytes first
+      final pdfBytes = await pdf.save();
+
+      // Verify PDF bytes are not empty
+      if (pdfBytes.isEmpty) {
+        throw Exception('Generated PDF is empty');
+      }
+
+      print('PDF size: ${pdfBytes.length} bytes'); // Debug log
+
+      // Write to file
+      await pdfFile.writeAsBytes(
+        pdfBytes,
+        flush: true,
+      ); // flush: true ensures immediate write
+
+      // Wait a moment to ensure file system sync
+      await Future.delayed(Duration(milliseconds: 100));
+
+      // Verify file exists and has content
+      if (!await pdfFile.exists()) {
+        throw Exception('PDF file was not created');
+      }
+
+      final fileSize = await pdfFile.length();
+      if (fileSize == 0) {
+        throw Exception('PDF file is empty (0 bytes)');
+      }
+
+      print(
+        'PDF file created successfully: ${pdfFile.path}, size: $fileSize bytes',
+      );
+
+      // Upload PDF and text
       await _uploadToServer(pdfFile, combinedText);
 
       // Show success message and close dialog
@@ -166,35 +321,69 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
           SnackBar(content: Text('Receipts uploaded successfully')),
         );
         widget.onUploadSuccess?.call();
-        Navigator.of(context).pop(); // Close the dialog
+        Navigator.of(context).pop();
       }
     } catch (e) {
+      print('Error in _createAndUploadPDF: $e'); // Debug log
       // Show error message
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
       }
+    } finally {
+      setState(() {
+        _isUploading = false;
+      });
     }
-
-    setState(() {
-      _isUploading = false;
-    });
   }
 
   Future<void> _uploadToServer(File pdfFile, String text) async {
+    // Verify file before upload
+    if (!await pdfFile.exists()) {
+      throw Exception('PDF file does not exist');
+    }
+
+    final fileSize = await pdfFile.length();
+    if (fileSize == 0) {
+      throw Exception('PDF file is empty before upload');
+    }
+
+    print('Uploading PDF: ${pdfFile.path}, size: $fileSize bytes');
+
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final uri = Uri.parse(
       'https://igb-fems.com/LIVE/mobile_php/upload_receipt.php',
     );
+
     final request = http.MultipartRequest('POST', uri)
       ..fields['userId'] = auth.userId.toString()
       ..fields['text'] = text
-      ..fields['type'] = 'purchases'
-      ..files.add(await http.MultipartFile.fromPath('pdf', pdfFile.path));
+      ..fields['type'] = 'purchases';
+
+    // Use fromBytes instead of fromPath for better control
+    final pdfBytes = await pdfFile.readAsBytes();
+
+    if (pdfBytes.isEmpty) {
+      throw Exception('PDF bytes are empty');
+    }
+
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'pdf',
+        pdfBytes,
+        filename: 'receipts.pdf',
+        contentType: MediaType('application', 'pdf'),
+      ),
+    );
+
+    print('Sending request with PDF size: ${pdfBytes.length} bytes');
 
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
+
+    print('Response status: ${response.statusCode}');
+    print('Response body: ${response.body}');
 
     if (response.statusCode != 200) {
       throw Exception(
@@ -202,7 +391,6 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
       );
     }
 
-    // Parse JSON response
     final responseData = json.decode(response.body);
     if (responseData['success'] != true) {
       throw Exception('Server error: ${responseData['message']}');
@@ -263,7 +451,7 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
                     ),
                     SizedBox(width: 12),
                     Text(
-                      'Scan Purchase Receipts',
+                      'Purchases',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 20,
@@ -273,27 +461,53 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
                   ],
                 ),
                 SizedBox(height: 20),
-                // Scan button with better styling
-                Container(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: Icon(Icons.camera_alt, size: 24),
-                    label: Text(
-                      'Scan Receipts',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF8f72ec),
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                // Scan options
+                Column(
+                  children: [
+                    // Scan
+                    Container(
+                      width: double.infinity,
+                      margin: EdgeInsets.only(bottom: 8),
+                      child: ElevatedButton.icon(
+                        icon: Icon(Icons.camera_alt, size: 20),
+                        label: Text('Scan', style: TextStyle(fontSize: 14)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF8f72ec),
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: (_isProcessing || _isUploading)
+                            ? null
+                            : _batchCameraScan,
                       ),
                     ),
-                    onPressed: (_isProcessing || _isUploading)
-                        ? null
-                        : _scanReceipt,
-                  ),
+                    // Upload from Devices
+                    Container(
+                      width: double.infinity,
+                      margin: EdgeInsets.only(bottom: 8),
+                      child: ElevatedButton.icon(
+                        icon: Icon(Icons.photo_library, size: 20),
+                        label: Text(
+                          'Upload from Devices',
+                          style: TextStyle(fontSize: 14),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF4CAF50),
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: (_isProcessing || _isUploading)
+                            ? null
+                            : _selectFromGallery,
+                      ),
+                    ),
+                  ],
                 ),
                 if (_isProcessing) ...[
                   SizedBox(height: 20),

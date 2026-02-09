@@ -325,10 +325,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 // Header
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF1e293b),
-                   
-                  ),
+                  decoration: const BoxDecoration(color: Color(0xFF1e293b)),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [

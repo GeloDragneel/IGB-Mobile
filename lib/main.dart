@@ -34,6 +34,14 @@ import 'screens/account_payable_screen.dart';
 import 'screens/account_receivable_screen.dart';
 
 void main() {
+  // Add global error handling
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    // Log the error or send to crash reporting service
+    print('Flutter Error: ${details.exception}');
+    print('Stack trace: ${details.stack}');
+  };
+
   runApp(
     MultiProvider(
       providers: [
@@ -84,7 +92,7 @@ class MyApp extends StatelessWidget {
         '/accountingPeriod': (context) => AccountingPeriodScreen(),
         '/reports': (context) => ReportsScreen(),
         '/report_detail': (context) => ReportDetailScreen(
-          reportName: ModalRoute.of(context)!.settings.arguments as String,
+          reportName: (ModalRoute.of(context)?.settings.arguments as String?) ?? '',
         ),
         '/trial_balance': (context) => TrialBalanceScreen(),
         '/summary': (context) => SummaryScreen(),
