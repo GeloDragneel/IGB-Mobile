@@ -8,6 +8,7 @@ import 'package:google_mlkit_document_scanner/google_mlkit_document_scanner.dart
     as doc_scanner;
 import 'package:provider/provider.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:pdf/pdf.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:convert';
 import '../providers/scan_provider.dart';
@@ -31,9 +32,7 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
 
   Future<void> _scanReceipt() async {
     final documentScanner = doc_scanner.DocumentScanner(
-      options: doc_scanner.DocumentScannerOptions(
-        pageLimit: 10, // Allow batch scanning up to 10 pages
-      ),
+      options: doc_scanner.DocumentScannerOptions(pageLimit: 10),
     );
 
     try {
@@ -46,7 +45,6 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
         await _performOCR(_images);
       }
     } catch (e) {
-      // Fallback to manual camera + crop if document scanner fails
       await _fallbackScanReceipt();
     } finally {
       documentScanner.close();
@@ -65,7 +63,6 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
       List<File> selectedImages = [];
 
       for (var pickedFile in pickedFiles) {
-        // Optional: Crop each selected image
         final croppedFile = await ImageCropper().cropImage(
           sourcePath: pickedFile.path,
         );
@@ -88,9 +85,7 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
 
   Future<void> _batchCameraScan() async {
     final documentScanner = doc_scanner.DocumentScanner(
-      options: doc_scanner.DocumentScannerOptions(
-        pageLimit: 10, // Allow batch scanning up to 10 pages
-      ),
+      options: doc_scanner.DocumentScannerOptions(pageLimit: 10),
     );
 
     try {
@@ -103,7 +98,6 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
         await _performOCR(_images);
       }
     } catch (e) {
-      // Fallback to manual batch camera scan
       await _fallbackBatchCameraScan();
     } finally {
       documentScanner.close();
@@ -152,19 +146,17 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
     while (takeMore) {
       final picked = await picker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 100, // Highest quality
-        maxWidth: 1920, // High resolution
+        imageQuality: 100,
+        maxWidth: 1920,
         maxHeight: 1080,
       );
       if (picked != null) {
-        // Crop the image
         final croppedFile = await ImageCropper().cropImage(
           sourcePath: picked.path,
         );
         if (croppedFile != null) {
           selectedImages.add(File(croppedFile.path));
         }
-        // Ask if want to take more
         takeMore = await _askTakeMore();
       } else {
         takeMore = false;
@@ -190,16 +182,14 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.black),
             ),
-            actionsAlignment: MainAxisAlignment.center, // Flutter 3.3+
+            actionsAlignment: MainAxisAlignment.center,
             actions: [
               ElevatedButton(
-                onPressed: () =>
-                    Navigator.of(context).pop(false), // Done = false
+                onPressed: () => Navigator.of(context).pop(false),
                 child: const Text('Done'),
               ),
               ElevatedButton(
-                onPressed: () =>
-                    Navigator.of(context).pop(true), // Add More = true
+                onPressed: () => Navigator.of(context).pop(true),
                 child: const Text('Add More'),
               ),
             ],
@@ -213,16 +203,20 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
     final textRecognizer = TextRecognizer();
 
     for (File imageFile in imageFiles) {
-      final inputImage = InputImage.fromFile(imageFile);
-      final RecognizedText recognizedText = await textRecognizer.processImage(
-        inputImage,
-      );
-      allTexts.add(recognizedText.text);
+      try {
+        final inputImage = InputImage.fromFile(imageFile);
+        final RecognizedText recognizedText = await textRecognizer.processImage(
+          inputImage,
+        );
+        allTexts.add(recognizedText.text);
+      } catch (e) {
+        allTexts.add('[OCR failed for this image]');
+      }
     }
 
     textRecognizer.close();
 
-    String combinedText = allTexts.join('\n\n--- Next Receipt ---\n\n');
+    final String combinedText = allTexts.join('\n\n--- Next Receipt ---\n\n');
 
     Provider.of<ScanProvider>(
       context,
@@ -233,8 +227,6 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
       _combinedText = combinedText;
       _isProcessing = false;
     });
-
-    // OCR done, ready for submit
   }
 
   Future<void> _submitReceipts() async {
@@ -256,49 +248,39 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
       for (int i = 0; i < imageFiles.length; i++) {
         final imageFile = imageFiles[i];
         final imageBytes = await imageFile.readAsBytes();
+
+        if (imageBytes.isEmpty) {
+          throw Exception('Image $i is empty');
+        }
+
         final image = pw.MemoryImage(imageBytes);
+        final pageText = (i < texts.length) ? texts[i] : '';
 
         pdf.addPage(
           pw.Page(
-            build: (pw.Context context) {
-              return pw.Column(
-                children: [
-                  pw.Image(image),
-                  pw.SizedBox(height: 10),
-                  pw.Text(texts[i], style: pw.TextStyle(fontSize: 12)),
-                ],
-              );
+            pageFormat: PdfPageFormat.a4,
+            margin: const pw.EdgeInsets.all(24),
+            build: (pw.Context ctx) {
+              return pw.Center(child: pw.Image(image, fit: pw.BoxFit.contain));
             },
           ),
         );
       }
 
-      // Save PDF to temp directory
       final output = await getTemporaryDirectory();
       final pdfFile = File(
         '${output.path}/receipts_${DateTime.now().millisecondsSinceEpoch}.pdf',
       );
 
-      // Get PDF bytes first
       final pdfBytes = await pdf.save();
 
-      // Verify PDF bytes are not empty
       if (pdfBytes.isEmpty) {
         throw Exception('Generated PDF is empty');
       }
 
-      print('PDF size: ${pdfBytes.length} bytes'); // Debug log
+      await pdfFile.writeAsBytes(pdfBytes, flush: true);
+      await Future.delayed(const Duration(milliseconds: 100));
 
-      // Write to file
-      await pdfFile.writeAsBytes(
-        pdfBytes,
-        flush: true,
-      ); // flush: true ensures immediate write
-
-      // Wait a moment to ensure file system sync
-      await Future.delayed(Duration(milliseconds: 100));
-
-      // Verify file exists and has content
       if (!await pdfFile.exists()) {
         throw Exception('PDF file was not created');
       }
@@ -308,38 +290,31 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
         throw Exception('PDF file is empty (0 bytes)');
       }
 
-      print(
-        'PDF file created successfully: ${pdfFile.path}, size: $fileSize bytes',
-      );
-
-      // Upload PDF and text
       await _uploadToServer(pdfFile, combinedText);
 
-      // Show success message and close dialog
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Receipts uploaded successfully')),
+          const SnackBar(content: Text('Receipts uploaded successfully')),
         );
         widget.onUploadSuccess?.call();
         Navigator.of(context).pop();
       }
     } catch (e) {
-      print('Error in _createAndUploadPDF: $e'); // Debug log
-      // Show error message
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
       }
     } finally {
-      setState(() {
-        _isUploading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+      }
     }
   }
 
   Future<void> _uploadToServer(File pdfFile, String text) async {
-    // Verify file before upload
     if (!await pdfFile.exists()) {
       throw Exception('PDF file does not exist');
     }
@@ -348,8 +323,6 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
     if (fileSize == 0) {
       throw Exception('PDF file is empty before upload');
     }
-
-    print('Uploading PDF: ${pdfFile.path}, size: $fileSize bytes');
 
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final uri = Uri.parse(
@@ -361,7 +334,6 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
       ..fields['text'] = text
       ..fields['type'] = 'purchases';
 
-    // Use fromBytes instead of fromPath for better control
     final pdfBytes = await pdfFile.readAsBytes();
 
     if (pdfBytes.isEmpty) {
@@ -377,13 +349,8 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
       ),
     );
 
-    print('Sending request with PDF size: ${pdfBytes.length} bytes');
-
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
-
-    print('Response status: ${response.statusCode}');
-    print('Response body: ${response.body}');
 
     if (response.statusCode != 200) {
       throw Exception(
@@ -408,15 +375,15 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
             AppBar(
               backgroundColor: Colors.black,
               leading: IconButton(
-                icon: Icon(Icons.close, color: Colors.white),
+                icon: const Icon(Icons.close, color: Colors.white),
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ),
             Expanded(
               child: InteractiveViewer(
-                child: Image.file(image),
                 minScale: 0.5,
                 maxScale: 4.0,
+                child: Image.file(image),
               ),
             ),
           ],
@@ -441,9 +408,9 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header with icon
+                // Header
                 Row(
-                  children: [
+                  children: const [
                     Icon(
                       Icons.receipt_long,
                       color: Color(0xFF8f72ec),
@@ -460,21 +427,24 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
                     ),
                   ],
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
+
                 // Scan options
                 Column(
                   children: [
-                    // Scan
                     Container(
                       width: double.infinity,
-                      margin: EdgeInsets.only(bottom: 8),
+                      margin: const EdgeInsets.only(bottom: 8),
                       child: ElevatedButton.icon(
-                        icon: Icon(Icons.camera_alt, size: 20),
-                        label: Text('Scan', style: TextStyle(fontSize: 14)),
+                        icon: const Icon(Icons.camera_alt, size: 20),
+                        label: const Text(
+                          'Scan',
+                          style: TextStyle(fontSize: 14),
+                        ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFF8f72ec),
+                          backgroundColor: const Color(0xFF8f72ec),
                           foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -484,20 +454,19 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
                             : _batchCameraScan,
                       ),
                     ),
-                    // Upload from Devices
                     Container(
                       width: double.infinity,
-                      margin: EdgeInsets.only(bottom: 8),
+                      margin: const EdgeInsets.only(bottom: 8),
                       child: ElevatedButton.icon(
-                        icon: Icon(Icons.photo_library, size: 20),
-                        label: Text(
+                        icon: const Icon(Icons.photo_library, size: 20),
+                        label: const Text(
                           'Upload from Devices',
                           style: TextStyle(fontSize: 14),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFF4CAF50),
+                          backgroundColor: const Color(0xFF4CAF50),
                           foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -509,39 +478,47 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
                     ),
                   ],
                 ),
+
                 if (_isProcessing) ...[
-                  SizedBox(height: 20),
-                  CircularProgressIndicator(color: Colors.white),
-                  Text(
+                  const SizedBox(height: 20),
+                  const CircularProgressIndicator(color: Colors.white),
+                  const SizedBox(height: 8),
+                  const Text(
                     'Processing images...',
                     style: TextStyle(color: Colors.white),
                   ),
                 ],
+
                 if (_isUploading) ...[
-                  SizedBox(height: 20),
-                  CircularProgressIndicator(color: Colors.white),
-                  Text('Uploading...', style: TextStyle(color: Colors.white)),
+                  const SizedBox(height: 20),
+                  const CircularProgressIndicator(color: Colors.white),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Uploading...',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ],
+
                 if (_images.isNotEmpty) ...[
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Text(
                     'Scanned Images (${_images.length})',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                   Container(
                     height: 280,
                     decoration: BoxDecoration(
-                      color: Color(0xFF1A1D2E),
+                      color: const Color(0xFF1A1D2E),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.white12, width: 1),
                     ),
                     child: ListView(
-                      padding: EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(12),
                       children: _images
                           .map(
                             (image) => Padding(
@@ -555,7 +532,7 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
                                       width: 1,
                                     ),
                                     borderRadius: BorderRadius.circular(8),
-                                    boxShadow: [
+                                    boxShadow: const [
                                       BoxShadow(
                                         color: Colors.black26,
                                         blurRadius: 4,
@@ -577,13 +554,13 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
                                           top: 8,
                                           right: 8,
                                           child: Container(
-                                            padding: EdgeInsets.all(4),
+                                            padding: const EdgeInsets.all(4),
                                             decoration: BoxDecoration(
                                               color: Colors.black54,
                                               borderRadius:
                                                   BorderRadius.circular(12),
                                             ),
-                                            child: Icon(
+                                            child: const Icon(
                                               Icons.zoom_in,
                                               color: Colors.white,
                                               size: 16,
@@ -601,22 +578,23 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
                     ),
                   ),
                 ],
+
                 if (_images.isNotEmpty && !_isProcessing && !_isUploading) ...[
-                  SizedBox(height: 20),
-                  Container(
+                  const SizedBox(height: 20),
+                  SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () => _submitReceipts(),
+                      onPressed: _submitReceipts,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF8f72ec),
+                        backgroundColor: const Color(0xFF8f72ec),
                         foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         elevation: 2,
                       ),
-                      child: Text(
+                      child: const Text(
                         'Submit Receipts',
                         style: TextStyle(
                           fontSize: 16,
@@ -626,22 +604,23 @@ class _PurchaseScanDialogState extends State<PurchaseScanDialog> {
                     ),
                   ),
                 ],
-                SizedBox(height: 16),
 
-                Container(
+                const SizedBox(height: 16),
+
+                SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFFe57373),
+                      backgroundColor: const Color(0xFFe57373),
                       foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 14),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                       elevation: 2,
                     ),
-                    child: Text(
+                    child: const Text(
                       'Cancel',
                       style: TextStyle(
                         fontSize: 16,
