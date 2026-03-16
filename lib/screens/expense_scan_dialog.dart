@@ -411,14 +411,11 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
+    return Dialog.fullscreen(
       backgroundColor: const Color(0xFF121826),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.9,
-          maxHeight: MediaQuery.of(context).size.height * 0.8,
-        ),
+      child: SizedBox(
+        width: double.infinity,
+        height: double.infinity,
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(20.0),
@@ -496,6 +493,16 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
                             ? null
                             : _selectFromGallery,
                       ),
+                    ),
+                    // Expense Account dropdown placed right after Upload from Devices
+                    _SearchableAccountField(
+                      accounts: _accounts,
+                      selectedAccountCode: _selectedAccountCode,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedAccountCode = value;
+                        });
+                      },
                     ),
                   ],
                 ),
@@ -602,17 +609,6 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
                 ],
 
                 if (_images.isNotEmpty && !_isProcessing && !_isUploading) ...[
-                  const SizedBox(height: 20),
-                  // Searchable Account Selector
-                  _SearchableAccountField(
-                    accounts: _accounts,
-                    selectedAccountCode: _selectedAccountCode,
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedAccountCode = value;
-                      });
-                    },
-                  ),
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
