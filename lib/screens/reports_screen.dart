@@ -50,7 +50,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
     'BIR2307': '/bir2307',
     'Income Statement': '/income_statement',
     'Annual Summary': '/annual_summary',
-    'Annual Summary - Comparative Income Statement': '/annual_summary_comparative_income_statement',
+    'Annual Summary - Comparative Income Statement':
+        '/annual_summary_comparative_income_statement',
     'Sales Journal': '/sales_journal',
     'Purchase Receipts Journal': '/purchase_receipts_journal',
     'Cash Disbursement Journal': '/cash_disbursement_journal',

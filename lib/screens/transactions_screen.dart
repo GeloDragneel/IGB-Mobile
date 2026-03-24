@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
 
 const Map<String, String> headerToFooterKey = {
@@ -33,6 +31,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Map<String, dynamic> footer = {};
   bool isLoading = false;
   String? error;
+  final TransformationController _transformationController =
+      TransformationController();
+
+  void _resetZoom() {
+    _transformationController.value = Matrix4.identity();
+  }
 
   @override
   void didChangeDependencies() {
@@ -129,6 +133,77 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return '';
   }
 
+  // ─── Shared button style ───────────────────────────────────────────────────
+  ButtonStyle _buttonStyle({bool compact = false}) => ElevatedButton.styleFrom(
+    backgroundColor: const Color(0xFF8f72ec),
+    foregroundColor: Colors.white,
+    padding: EdgeInsets.symmetric(vertical: compact ? 10 : 14, horizontal: 24),
+  );
+
+  // ─── Generate button ───────────────────────────────────────────────────────
+  Widget _generateButton({bool compact = false}) {
+    return SizedBox(
+      width: double.infinity,
+      height: compact ? 42 : null,
+      child: ElevatedButton(
+        onPressed: () async {
+          if (_selectedJournal == null || _selectedYear == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Please select journal and year")),
+            );
+            return;
+          }
+          setState(() {
+            isLoading = true;
+            error = null;
+            transactions = [];
+            headers = [];
+            footer = {};
+          });
+          try {
+            String transactionType = _selectedJournal!.replaceAll(' ', '');
+            String url =
+                'https://igb-fems.com/LIVE/mobile_php/transaction.php?userId=10&transactionType=$transactionType&year=$_selectedYear';
+            final response = await http.get(Uri.parse(url));
+            if (response.statusCode == 200) {
+              final json = jsonDecode(response.body);
+              if (json['result'] == 'Success') {
+                setState(() {
+                  headers = List<String>.from(json['header']);
+                  transactions = List<Map<String, dynamic>>.from(
+                    json['data'].map((e) => Map<String, dynamic>.from(e)),
+                  );
+                  footer = Map<String, dynamic>.from(json['footer']);
+                  isLoading = false;
+                });
+              } else {
+                setState(() {
+                  error = 'Failed to load data';
+                  isLoading = false;
+                });
+              }
+            } else {
+              setState(() {
+                error = 'HTTP error: ${response.statusCode}';
+                isLoading = false;
+              });
+            }
+          } catch (e) {
+            setState(() {
+              error = e.toString();
+              isLoading = false;
+            });
+          }
+        },
+        style: _buttonStyle(compact: compact),
+        child: Text(
+          "Generate Report",
+          style: TextStyle(fontSize: compact ? 14 : 16),
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickYear() async {
     final picked = await showDialog<int>(
       context: context,
@@ -144,7 +219,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             height: 200,
             width: 300,
             child: ListView.builder(
-              itemCount: 50, // 50 years
+              itemCount: 50,
               itemBuilder: (context, index) {
                 int year = DateTime.now().year - 25 + index;
                 return ListTile(
@@ -172,171 +247,176 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }
   }
 
+  // ─── Year picker tile ──────────────────────────────────────────────────────
+  Widget _yearPickerTile({bool compact = false}) {
+    return GestureDetector(
+      onTap: _pickYear,
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(
+          vertical: compact ? 10 : 14,
+          horizontal: 12,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1e2235),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          _selectedYear != null ? _selectedYear.toString() : "Select Year",
+          style: TextStyle(color: Colors.white, fontSize: compact ? 14 : 16),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Transactions')),
+      appBar: AppBar(
+        title: const Text('Transactions'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.zoom_out_map),
+            onPressed: _resetZoom,
+          ),
+        ],
+      ),
       drawer: AppDrawer(selectedIndex: 6),
       backgroundColor: const Color(0xFF121826),
       body: Column(
         children: [
+          // ── Filter section ────────────────────────────────────────────────
           SingleChildScrollView(
             child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<String>(
-                    value: _selectedJournal,
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: const Color(0xFF1e2235),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 14,
-                        horizontal: 12,
-                      ),
-                    ),
-                    dropdownColor: const Color(0xFF1e2235),
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                    hint: const Text(
-                      'Select Journal',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'Sales Journal',
-                        child: Text('Sales Journal'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Purchase Journal',
-                        child: Text('Purchase Journal'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Expenses Journal',
-                        child: Text('Expenses Journal'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedJournal = value;
-                      });
-                    },
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  GestureDetector(
-                    onTap: _pickYear,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 14,
-                        horizontal: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1e2235),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _selectedYear != null
-                            ? _selectedYear.toString()
-                            : "Select Year",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        if (_selectedJournal == null || _selectedYear == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Please select journal and year"),
-                            ),
-                          );
-                          return;
-                        }
-                        setState(() {
-                          isLoading = true;
-                          error = null;
-                          transactions = [];
-                          headers = [];
-                          footer = {};
-                        });
-                        try {
-                          String transactionType = _selectedJournal!.replaceAll(
-                            ' ',
-                            '',
-                          );
-                          String url =
-                              'https://igb-fems.com/LIVE/mobile_php/transaction.php?userId=10&transactionType=$transactionType&year=$_selectedYear';
-                          final response = await http.get(Uri.parse(url));
-                          if (response.statusCode == 200) {
-                            final json = jsonDecode(response.body);
-                            if (json['result'] == 'Success') {
-                              setState(() {
-                                headers = List<String>.from(json['header']);
-                                transactions = List<Map<String, dynamic>>.from(
-                                  json['data'].map(
-                                    (e) => Map<String, dynamic>.from(e),
-                                  ),
-                                );
-                                footer = Map<String, dynamic>.from(
-                                  json['footer'],
-                                );
-                                isLoading = false;
-                              });
-                            } else {
-                              setState(() {
-                                error = 'Failed to load data';
-                                isLoading = false;
-                              });
-                            }
-                          } else {
-                            setState(() {
-                              error = 'HTTP error: ${response.statusCode}';
-                              isLoading = false;
-                            });
-                          }
-                        } catch (e) {
-                          setState(() {
-                            error = e.toString();
-                            isLoading = false;
-                          });
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF8f72ec),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 14,
-                          horizontal: 24,
-                        ),
-                      ),
-                      child: const Text("Generate Report"),
-                    ),
-                  ),
-                ],
+              padding: EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: isLandscape ? 8 : 20,
               ),
+              child: isLandscape
+                  // ── LANDSCAPE ───────────────────────────────────────────
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedJournal,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: const Color(0xFF1e2235),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                                horizontal: 12,
+                              ),
+                            ),
+                            dropdownColor: const Color(0xFF1e2235),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                            hint: const Text(
+                              'Select Journal',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'Sales Journal',
+                                child: Text('Sales Journal'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Purchase Journal',
+                                child: Text('Purchase Journal'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Expenses Journal',
+                                child: Text('Expenses Journal'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedJournal = value;
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(child: _yearPickerTile(compact: true)),
+                        const SizedBox(width: 10),
+                        Expanded(child: _generateButton(compact: true)),
+                      ],
+                    )
+                  // ── PORTRAIT ─────────────────────────────────────────────
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        DropdownButtonFormField<String>(
+                          value: _selectedJournal,
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: const Color(0xFF1e2235),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                              horizontal: 12,
+                            ),
+                          ),
+                          dropdownColor: const Color(0xFF1e2235),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
+                          hint: const Text(
+                            'Select Journal',
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'Sales Journal',
+                              child: Text('Sales Journal'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'Purchase Journal',
+                              child: Text('Purchase Journal'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'Expenses Journal',
+                              child: Text('Expenses Journal'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedJournal = value;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          child: _yearPickerTile(),
+                        ),
+                        _generateButton(),
+                      ],
+                    ),
             ),
           ),
+          // ── Table section ─────────────────────────────────────────────────
           Expanded(
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : error != null
                 ? Center(
-                    child: Text(error!, style: TextStyle(color: Colors.red)),
+                    child: Text(
+                      error!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
                   )
                 : transactions.isEmpty
                 ? const Center(
@@ -345,79 +425,86 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       style: TextStyle(color: Colors.white),
                     ),
                   )
-                : SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
+                : InteractiveViewer(
+                    boundaryMargin: const EdgeInsets.all(20),
+                    minScale: 0.5,
+                    maxScale: 4.0,
+                    transformationController: _transformationController,
                     child: SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: DataTable(
-                          border: TableBorder.all(
-                            color: Colors.grey.shade600,
-                            width: 1,
-                          ),
-                          columnSpacing: 15,
-                          dataRowMinHeight: 30,
-                          dataRowMaxHeight: 30,
-                          headingRowHeight: 30,
-                          columns: headers
-                              .map(
-                                (header) => DataColumn(
-                                  label: Text(
-                                    header,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
+                      scrollDirection: Axis.horizontal,
+                      child: SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: DataTable(
+                            border: TableBorder.all(
+                              color: Colors.grey.shade600,
+                              width: 1,
+                            ),
+                            columnSpacing: 15,
+                            dataRowMinHeight: 30,
+                            dataRowMaxHeight: 30,
+                            headingRowHeight: 30,
+                            columns: headers
+                                .map(
+                                  (header) => DataColumn(
+                                    label: Text(
+                                      header,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
                                     ),
                                   ),
+                                )
+                                .toList(),
+                            rows: [
+                              ...transactions.map(
+                                (item) => DataRow(
+                                  cells: headers
+                                      .map(
+                                        (header) => DataCell(
+                                          Text(
+                                            _getDisplayValue(item, header),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
                                 ),
-                              )
-                              .toList(),
-                          rows: [
-                            ...transactions.map(
-                              (item) => DataRow(
+                              ),
+                              DataRow(
                                 cells: headers
                                     .map(
                                       (header) => DataCell(
                                         Text(
-                                          _getDisplayValue(item, header),
+                                          _getFooterValue(header),
                                           style: const TextStyle(
                                             color: Colors.white,
+                                            fontWeight: FontWeight.bold,
                                           ),
                                         ),
                                       ),
                                     )
                                     .toList(),
                               ),
+                            ],
+                            headingRowColor: WidgetStateProperty.all(
+                              const Color(0xFF8f72ec),
                             ),
-                            DataRow(
-                              cells: headers
-                                  .map(
-                                    (header) => DataCell(
-                                      Text(
-                                        _getFooterValue(header),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                          ],
-                          headingRowColor: WidgetStateProperty.all(
-                            const Color(0xFF8f72ec),
-                          ),
-                          dataRowColor: WidgetStateProperty.resolveWith<Color?>(
-                            (Set<WidgetState> states) {
-                              if (states.contains(WidgetState.selected)) {
-                                return const Color(
-                                  0xFF1e2235,
-                                ).withValues(alpha: 0.5);
-                              }
-                              return const Color(0xFF1e2235);
-                            },
+                            dataRowColor:
+                                WidgetStateProperty.resolveWith<Color?>((
+                                  Set<WidgetState> states,
+                                ) {
+                                  if (states.contains(WidgetState.selected)) {
+                                    return const Color(
+                                      0xFF1e2235,
+                                    ).withValues(alpha: 0.5);
+                                  }
+                                  return const Color(0xFF1e2235);
+                                }),
                           ),
                         ),
                       ),

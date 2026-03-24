@@ -1,7 +1,7 @@
 name: igb_scan_suite
 description: "IGB Scan Suite"
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
-version: 1.0.0+26
+version: 1.0.0+31
 environment:
   sdk: ^3.9.0
 dependencies:
@@ -20,6 +20,9 @@ dependencies:
   http: ^1.2.0
   url_launcher: ^6.2.2
   http_parser: ^4.1.2
+  local_auth: ^2.3.0  # For biometric authentication
+  flutter_secure_storage: ^9.2.2  # For secure credential storage
+  shared_preferences: ^2.3.2   # Add this line
 dev_dependencies:
   flutter_test:
     sdk: flutter

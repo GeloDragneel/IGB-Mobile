@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthProvider extends ChangeNotifier {
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+
   bool _isLoggedIn = false;
   String _username = '';
   String _tradeName = '';
@@ -15,6 +18,7 @@ class AuthProvider extends ChangeNotifier {
   String _clientNum = '';
   String _tin = '';
   String _comId = '';
+  String _caid = '';
 
   bool get isLoggedIn => _isLoggedIn;
   String get username => _username;
@@ -28,6 +32,7 @@ class AuthProvider extends ChangeNotifier {
   String get clientNum => _clientNum;
   String get tin => _tin;
   String get comId => _comId;
+  String get caid => _caid;
 
   set fromDate(String value) {
     _fromDate = value;
@@ -58,7 +63,7 @@ class AuthProvider extends ChangeNotifier {
         body: jsonEncode({
           'username': username,
           'password': password,
-          'loginAttempt': 0, // You can track login attempts if you want
+          'loginAttempt': 0,
           'fromUsername': '',
           'fromPassword': '',
         }),
@@ -66,36 +71,71 @@ class AuthProvider extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        final String result = data['result'];
 
-        String result = data['result'];
-
-        if (result == "Success") {
+        if (result == 'Success') {
           _isLoggedIn = true;
           _username = username;
           _tradeName = data['tradeName'] ?? '';
           _fullName = data['fullName'] ?? '';
           _branchCode = data['branchCode'] ?? '';
-          _userId = data['userId'] ?? '';
+          _userId = data['userId']?.toString() ?? '';
           _fromDate = data['fromDate'] ?? '';
           _toDate = data['toDate'] ?? '';
           _branchType = data['branchType'] ?? '';
           _clientNum = data['clientNum'] ?? '';
           _tin = data['TIN'] ?? '';
-          _comId = data['comId'] ?? '';
+          _comId = data['comId']?.toString() ?? '';
+          _caid = data['CAID']?.toString() ?? '';
+
+          // Store credentials keyed by CAID so each account has its own entry
+          if (_caid.isNotEmpty) {
+            await _secureStorage.write(
+              key: 'biometric_username_$_caid',
+              value: username,
+            );
+            await _secureStorage.write(
+              key: 'biometric_password_$_caid',
+              value: password,
+            );
+          }
+
           notifyListeners();
         }
-        return result; // can be Success, NotCorrect, ResetPassword, etc.
+        return result;
       } else {
-        return "Error"; // HTTP error
+        return 'Error';
       }
     } catch (e) {
-      print('Login error: $e');
-      return "Error";
+      debugPrint('Login error: $e');
+      return 'Error';
+    }
+  }
+
+  /// Login with biometric using the selected CAID.
+  /// Retrieves the credentials stored for that specific CAID and logs in.
+  Future<String> loginWithBiometric({required String caid}) async {
+    try {
+      final storedUsername = await _secureStorage.read(
+        key: 'biometric_username_$caid',
+      );
+      final storedPassword = await _secureStorage.read(
+        key: 'biometric_password_$caid',
+      );
+
+      if (storedUsername == null || storedPassword == null) {
+        debugPrint('No stored credentials found for CAID: $caid');
+        return 'NoBiometric';
+      }
+
+      return await login(storedUsername, storedPassword);
+    } catch (e) {
+      debugPrint('Biometric login error: $e');
+      return 'Error';
     }
   }
 
   void logout() {
-    // ✅ Clear on logout
     _isLoggedIn = false;
     _username = '';
     _tradeName = '';
@@ -108,6 +148,7 @@ class AuthProvider extends ChangeNotifier {
     _clientNum = '';
     _tin = '';
     _comId = '';
+    _caid = '';
     notifyListeners();
   }
 }

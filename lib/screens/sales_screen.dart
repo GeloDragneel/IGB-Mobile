@@ -7,7 +7,24 @@ import '../widgets/navigation_drawer.dart';
 import '../providers/auth_provider.dart';
 import 'sales_scan_dialog.dart';
 
-// Model class for purchase record
+// ─── Theme Constants ───────────────────────────────────────────────
+class _T {
+  static const bg = Color(0xFF080C14);
+  static const surface = Color(0xFF0F1521);
+  static const card = Color(0xFF141B28);
+  static const cardHover = Color(0xFF1A2235);
+  static const border = Color(0xFF1E2A3E);
+  static const accent = Color(0xFF6C63FF);
+  static const accentSoft = Color(0xFF8F72EC);
+  static const green = Color(0xFF10B981);
+  static const red = Color(0xFFEF4444);
+  static const amber = Color(0xFFF59E0B);
+  static const textPri = Color(0xFFF1F5F9);
+  static const textSec = Color(0xFF94A3B8);
+  static const textMut = Color(0xFF475569);
+}
+
+// ─── Model ─────────────────────────────────────────────────────────
 class SalesRecord {
   final String fileName;
   final String status;
@@ -29,12 +46,14 @@ class SalesRecord {
       status: json['Status'] ?? '',
       dateAdded: json['DateAdded'] ?? '',
       reference: json['Reference'] ?? '',
-      id: json['ID'] ?? '',
+      id: json['ID'] is int
+          ? json['ID']
+          : int.tryParse(json['ID'].toString()) ?? 0,
     );
   }
 }
 
-// Main widget
+// ─── Sales Screen ──────────────────────────────────────────────────
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
 
@@ -42,506 +61,782 @@ class SalesScreen extends StatefulWidget {
   State<SalesScreen> createState() => _SalesScreenState();
 }
 
-class _SalesScreenState extends State<SalesScreen> {
+class _SalesScreenState extends State<SalesScreen>
+    with SingleTickerProviderStateMixin {
   final formatter = NumberFormat('#,##0.00');
-  Future<List<SalesRecord>> _futureSalesRecords = Future.value([]);
-  int _currentPage = 1;
-  final int _rowsPerPage = 10;
+  final _searchCtrl = TextEditingController();
+  late AnimationController _animCtrl;
+  late Animation<double> _fadeAnim;
+
+  Future<List<SalesRecord>> _futureRecords = Future.value([]);
   List<SalesRecord> _allRecords = [];
-  List<SalesRecord> _filteredRecords = []; // 🔍 filtered list
-  String _searchQuery = ""; // 🔍 search text
+  List<SalesRecord> _filteredRecords = [];
+  int _currentPage = 1;
+  static const _perPage = 10;
+  String _statusFilter = 'All';
 
   @override
   void initState() {
     super.initState();
-    _futureSalesRecords = fetchSalesRecords();
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
+    _futureRecords = _fetchRecords();
   }
 
-  Future<List<SalesRecord>> fetchSalesRecords() async {
+  @override
+  void dispose() {
+    _animCtrl.dispose();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<List<SalesRecord>> _fetchRecords() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    final response = await http.get(
+    final res = await http.get(
       Uri.parse(
-        'https://igb-fems.com/LIVE/mobile_php/sales.php?userId=${auth.userId}&from=${auth.fromDate}&to=${auth.toDate}',
+        'https://igb-fems.com/LIVE/mobile_php/sales.php'
+        '?userId=${auth.userId}&from=${auth.fromDate}&to=${auth.toDate}',
       ),
     );
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
       if (data['result'] == 'Success') {
-        final List<dynamic> invoices = data['invoices'];
-        final records = invoices
-            .map((inv) => SalesRecord.fromJson(inv))
+        final records = (data['invoices'] as List)
+            .map((e) => SalesRecord.fromJson(e))
             .toList();
         _allRecords = records;
-        _filteredRecords = records; // initialize filtered list
+        _filteredRecords = records;
+        _animCtrl.forward(from: 0);
         return records;
-      } else {
-        throw Exception('Failed to load sales records: ${data['result']}');
       }
-    } else {
-      throw Exception('Failed to load sales records: ${response.statusCode}');
     }
+    return [];
   }
 
-  void _showScanDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return SalesScanDialog(
-          onUploadSuccess: () {
-            setState(() {
-              _futureSalesRecords = fetchSalesRecords();
-            });
-          },
-        );
-      },
-    );
-  }
-
-  void _filterRecords(String query) {
+  void _applyFilters() {
+    final q = _searchCtrl.text.toLowerCase();
     setState(() {
-      _searchQuery = query.toLowerCase();
-      if (_searchQuery.isEmpty) {
-        _filteredRecords = _allRecords;
-      } else {
-        _filteredRecords = _allRecords.where((record) {
-          return record.fileName.toLowerCase().contains(_searchQuery);
-        }).toList();
-      }
-      _currentPage = 1; // reset to first page after search
+      _filteredRecords = _allRecords.where((r) {
+        final matchSearch = q.isEmpty || r.fileName.toLowerCase().contains(q);
+        final matchStatus = _statusFilter == 'All' || r.status == _statusFilter;
+        return matchSearch && matchStatus;
+      }).toList();
+      _currentPage = 1;
     });
   }
 
-  int _getItemsForCurrentPage() {
-    final startIndex = (_currentPage - 1) * _rowsPerPage;
-    final endIndex = startIndex + _rowsPerPage;
-    return endIndex > _filteredRecords.length
-        ? _filteredRecords.length - startIndex
-        : _rowsPerPage;
+  int get _totalPages =>
+      (_filteredRecords.length / _perPage).ceil().clamp(1, 999);
+
+  List<SalesRecord> get _pageRecords {
+    final start = (_currentPage - 1) * _perPage;
+    final end = (start + _perPage).clamp(0, _filteredRecords.length);
+    return _filteredRecords.sublist(start, end);
   }
 
-  int _getTotalPages() {
-    return (_filteredRecords.length / _rowsPerPage).ceil();
-  }
-
-  void _goToPage(int page) {
-    setState(() {
-      _currentPage = page;
-    });
-  }
-
-  List<Widget> _buildPageButtons() {
-    final totalPages = _getTotalPages();
-    final List<Widget> buttons = [];
-
-    buttons.add(
-      IconButton(
-        onPressed: _currentPage > 1 ? () => _goToPage(_currentPage - 1) : null,
-        icon: Icon(
-          Icons.chevron_left,
-          color: _currentPage > 1 ? Colors.white70 : Colors.white30,
+  Future<void> _deleteRecord(SalesRecord record) async {
+    try {
+      final res = await http.get(
+        Uri.parse(
+          'https://igb-fems.com/LIVE/mobile_php/delete_transaction.php?id=${record.id}',
         ),
-      ),
-    );
-
-    if (totalPages <= 7) {
-      for (int i = 1; i <= totalPages; i++) {
-        buttons.add(_buildPageButton(i));
+      );
+      if (res.statusCode == 200) {
+        _showSnack('Record deleted successfully', _T.green);
+        setState(() => _futureRecords = _fetchRecords());
+      } else {
+        _showSnack('Failed to delete record', _T.red);
       }
-    } else {
-      buttons.add(_buildPageButton(1));
-
-      if (_currentPage > 4) {
-        buttons.add(_buildEllipsis());
-      }
-
-      int start = (_currentPage - 1).clamp(2, totalPages - 2);
-      int end = (_currentPage + 1).clamp(3, totalPages - 1);
-
-      for (int i = start; i <= end; i++) {
-        if (i != 1 && i != totalPages) {
-          buttons.add(_buildPageButton(i));
-        }
-      }
-
-      if (_currentPage < totalPages - 3) {
-        buttons.add(_buildEllipsis());
-      }
-
-      if (totalPages > 1) {
-        buttons.add(_buildPageButton(totalPages));
-      }
+    } catch (e) {
+      _showSnack('Error: $e', _T.red);
     }
-
-    buttons.add(
-      IconButton(
-        onPressed: _currentPage < totalPages
-            ? () => _goToPage(_currentPage + 1)
-            : null,
-        icon: Icon(
-          Icons.chevron_right,
-          color: _currentPage < totalPages ? Colors.white70 : Colors.white30,
-        ),
-      ),
-    );
-
-    return buttons;
   }
 
-  Widget _buildPageButton(int page) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      child: InkWell(
-        onTap: () => _goToPage(page),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: BoxDecoration(
-            color: _currentPage == page
-                ? const Color(0xFF8f72ec)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: _currentPage == page
-                  ? const Color(0xFF8f72ec)
-                  : Colors.white30,
-              width: 1,
-            ),
-          ),
-          child: Text(
-            '$page',
-            style: TextStyle(
-              color: _currentPage == page ? Colors.white : Colors.white70,
-              fontWeight: FontWeight.w600,
-            ),
+  void _showSnack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
           ),
         ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
 
-  Widget _buildEllipsis() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: Text(
-        '...',
-        style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
-      ),
-    );
+  String _timeAgo(String dateStr) {
+    try {
+      final d = DateFormat('yyyy-MM-dd').parse(dateStr);
+      final diff = DateTime.now().difference(d).inDays;
+      if (diff == 0) return 'Today';
+      if (diff == 1) return 'Yesterday';
+      if (diff < 7) return '$diff days ago';
+      if (diff < 30) return '${(diff / 7).floor()}w ago';
+      return DateFormat('MMM d, y').format(d);
+    } catch (_) {
+      return dateStr;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Sales / Invoices',
-          style: TextStyle(
-            fontSize: 18, // smaller font size, default is around 20-22
-          ),
-        ),
-        actions: [
-          TextButton.icon(
-            onPressed: _showScanDialog,
-            icon: const Icon(
-              Icons.qr_code_scanner,
-              color: Colors.white,
-              size: 26, // bigger icon size (default is 24)
+      backgroundColor: _T.bg,
+      appBar: _buildAppBar(),
+      drawer: AppDrawer(selectedIndex: 3),
+      body: FutureBuilder<List<SalesRecord>>(
+        future: _futureRecords,
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(color: _T.accent),
+            );
+          }
+          if (snap.hasError) {
+            return _buildError(snap.error.toString());
+          }
+          return FadeTransition(
+            opacity: _fadeAnim,
+            child: Column(
+              children: [
+                _buildSearchAndFilter(),
+                _buildSummaryBar(),
+                Expanded(child: _buildList()),
+                if (_totalPages > 1) _buildPagination(),
+              ],
             ),
-            label: const Text(
-              'Scan',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18, // bigger text size
-              ),
+          );
+        },
+      ),
+    );
+  }
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      backgroundColor: _T.surface,
+      elevation: 0,
+      centerTitle: false,
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: _T.accent.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.receipt_long_rounded,
+              color: _T.accent,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Text(
+            'Sales / Invoices',
+            style: TextStyle(
+              color: _T.textPri,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
             ),
           ),
         ],
       ),
-
-      drawer: AppDrawer(selectedIndex: 3),
-      backgroundColor: const Color(0xFF121826),
-      body: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          children: [
-            // 🔍 Search bar
-            TextField(
-              decoration: InputDecoration(
-                hintText: "Search sales...",
-                hintStyle: TextStyle(color: Colors.white54),
-                prefixIcon: Icon(Icons.search, color: Colors.white54),
-                filled: true,
-                fillColor: const Color(0xFF1E2235),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
+      actions: [
+        Container(
+          margin: const EdgeInsets.only(right: 12),
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _T.accent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
-              style: TextStyle(color: Colors.white),
-              onChanged: _filterRecords,
+              elevation: 0,
             ),
-            SizedBox(height: 12),
+            onPressed: () => showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (_) => SalesScanDialog(
+                onUploadSuccess: () =>
+                    setState(() => _futureRecords = _fetchRecords()),
+              ),
+            ),
+            icon: const Icon(Icons.qr_code_scanner_rounded, size: 16),
+            label: const Text(
+              'Scan',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            ),
+          ),
+        ),
+      ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(height: 1, color: _T.border),
+      ),
+    );
+  }
 
-            Expanded(
-              child: FutureBuilder<List<SalesRecord>>(
-                future: _futureSalesRecords,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  } else if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error}'));
-                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(
-                      child: Text('No sales records available'),
-                    );
-                  } else {
-                    final records = _filteredRecords;
-                    final itemsOnPage = _getItemsForCurrentPage();
-                    final startIndex = (_currentPage - 1) * _rowsPerPage;
+  Widget _buildSearchAndFilter() {
+    return Container(
+      color: _T.surface,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Column(
+        children: [
+          // Search
+          Container(
+            decoration: BoxDecoration(
+              color: _T.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _T.border),
+            ),
+            child: TextField(
+              controller: _searchCtrl,
+              style: const TextStyle(color: _T.textPri, fontSize: 14),
+              onChanged: (_) => _applyFilters(),
+              decoration: InputDecoration(
+                hintText: 'Search by filename…',
+                hintStyle: const TextStyle(color: _T.textMut, fontSize: 14),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: _T.textMut,
+                  size: 20,
+                ),
+                suffixIcon: _searchCtrl.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: _T.textMut,
+                          size: 18,
+                        ),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          _applyFilters();
+                        },
+                      )
+                    : null,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Filter chips
+          Row(
+            children: ['All', 'Pending', 'Confirmed'].map((f) {
+              final active = _statusFilter == f;
+              Color chipColor;
+              if (f == 'Pending')
+                chipColor = _T.amber;
+              else if (f == 'Confirmed')
+                chipColor = _T.green;
+              else
+                chipColor = _T.accent;
 
-                    return Column(
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() => _statusFilter = f);
+                    _applyFilters();
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: active ? chipColor.withOpacity(0.15) : _T.card,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: active ? chipColor : _T.border,
+                        width: active ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Text(
+                      f,
+                      style: TextStyle(
+                        color: active ? chipColor : _T.textSec,
+                        fontSize: 12,
+                        fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryBar() {
+    final total = _allRecords.length;
+    final pending = _allRecords.where((r) => r.status == 'Pending').length;
+    final confirmed = _allRecords.where((r) => r.status == 'Confirmed').length;
+
+    return Container(
+      color: _T.surface,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(
+        children: [
+          _summaryChip('Total', total.toString(), _T.textSec),
+          const SizedBox(width: 8),
+          _summaryChip('Pending', pending.toString(), _T.amber),
+          const SizedBox(width: 8),
+          _summaryChip('Confirmed', confirmed.toString(), _T.green),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryChip(String label, String count, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            count,
+            style: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(color: color.withOpacity(0.7), fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildList() {
+    if (_filteredRecords.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.inbox_rounded,
+              size: 56,
+              color: _T.textMut.withOpacity(0.4),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'No records found',
+              style: TextStyle(color: _T.textMut, fontSize: 15),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      itemCount: _pageRecords.length,
+      itemBuilder: (context, i) => _buildCard(_pageRecords[i], i),
+    );
+  }
+
+  Widget _buildCard(SalesRecord record, int index) {
+    final isPending = record.status == 'Pending';
+    final statusColor = isPending ? _T.amber : _T.green;
+    final timeAgo = _timeAgo(record.dateAdded);
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 300 + (index * 60)),
+      curve: Curves.easeOut,
+      builder: (context, val, child) => Opacity(
+        opacity: val,
+        child: Transform.translate(
+          offset: Offset(0, 20 * (1 - val)),
+          child: child,
+        ),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: _T.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _T.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () {},
+            splashColor: _T.accent.withOpacity(0.05),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  // Icon
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: statusColor.withOpacity(0.25)),
+                    ),
+                    child: Icon(
+                      isPending
+                          ? Icons.hourglass_top_rounded
+                          : Icons.check_circle_outline_rounded,
+                      color: statusColor,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Content
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 0),
-                            itemCount: itemsOnPage,
-                            itemBuilder: (context, index) {
-                              final record = records[startIndex + index];
-
-                              // Parse and format the date
-                              DateTime? parsedDate;
-                              try {
-                                parsedDate = DateFormat(
-                                  'yyyy-MM-dd',
-                                ).parse(record.dateAdded);
-                              } catch (_) {}
-
-                              String timeAgo = parsedDate != null
-                                  ? '${DateTime.now().difference(parsedDate).inDays} days ago'
-                                  : record.dateAdded;
-
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1A1D2E),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 8,
-                                    horizontal: 12,
-                                  ),
-                                  leading: Icon(
-                                    Icons.picture_as_pdf,
-                                    color: (record.status == 'Pending'
-                                        ? Colors.redAccent
-                                        : Colors.greenAccent),
-                                    size: 40,
-                                  ),
-
-                                  title: Text(
-                                    record.fileName,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  subtitle: RichText(
-                                    text: TextSpan(
-                                      children: [
-                                        TextSpan(
-                                          text: '$timeAgo • ',
-                                          style: TextStyle(
-                                            color: Colors.white70,
-                                          ), // default white color for $timeAgo and separator
-                                        ),
-                                        TextSpan(
-                                          text: record.status,
-                                          style: TextStyle(
-                                            color: record.status == 'Pending'
-                                                ? Colors.redAccent
-                                                : Colors.greenAccent,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-
-                                  trailing: PopupMenuButton<String>(
-                                    icon: const Icon(
-                                      Icons.more_vert,
-                                      color: Colors.white70,
-                                    ),
-                                    onSelected: (value) async {
-                                      if (value == 'view') {
-                                        final auth = Provider.of<AuthProvider>(
-                                          context,
-                                          listen: false,
-                                        );
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => ViewScreen(
-                                              invoiceNo: record.reference,
-                                              userId: auth.userId,
-                                            ),
-                                          ),
-                                        );
-                                      } else if (value == 'delete') {
-                                        final confirmed = await showDialog<bool>(
-                                          context: context,
-                                          builder: (ctx) => AlertDialog(
-                                            backgroundColor: const Color(
-                                              0xFF1E2235,
-                                            ),
-                                            title: const Text(
-                                              'Confirm Delete',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            content: const Text(
-                                              'Are you sure you want to delete this item?',
-                                              style: TextStyle(
-                                                color: Colors.white70,
-                                              ),
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () => Navigator.of(
-                                                  ctx,
-                                                ).pop(false),
-                                                child: const Text(
-                                                  'No',
-                                                  style: TextStyle(
-                                                    color: Color(0xFF8f72ec),
-                                                  ),
-                                                ),
-                                              ),
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.of(ctx).pop(true),
-                                                child: const Text(
-                                                  'Yes',
-                                                  style: TextStyle(
-                                                    color: Color(0xFF8f72ec),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-
-                                        if (confirmed == true) {
-                                          print('Delete confirmed');
-
-                                          try {
-                                            // Replace `record.id` with the actual ID from your record
-                                            final deleteUrl = Uri.parse(
-                                              'https://igb-fems.com/LIVE/mobile_php/delete_transaction.php?id=${record.id}',
-                                            );
-                                            final response = await http.get(
-                                              deleteUrl,
-                                            );
-
-                                            if (response.statusCode == 200) {
-                                              final responseBody =
-                                                  response.body;
-                                              print(
-                                                'Delete response: $responseBody',
-                                              );
-
-                                              // Optionally parse JSON and show snackbar or update UI accordingly
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    'Item deleted successfully.',
-                                                  ),
-                                                ),
-                                              );
-                                              // Reload your list after delete
-                                              setState(() {
-                                                _futureSalesRecords =
-                                                    fetchSalesRecords();
-                                              });
-                                              // Refresh your list or update state here after deletion
-                                            } else {
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    'Failed to delete item.',
-                                                  ),
-                                                ),
-                                              );
-                                            }
-                                          } catch (e) {
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  'Error deleting item: $e',
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                        } else {
-                                          print('Delete canceled');
-                                        }
-                                      }
-                                    },
-                                    itemBuilder: (BuildContext context) {
-                                      if (record.status == 'Confirmed') {
-                                        return [
-                                          const PopupMenuItem<String>(
-                                            value: 'view',
-                                            child: Text('View'),
-                                          ),
-                                        ];
-                                      } else if (record.status == 'Pending') {
-                                        return [
-                                          const PopupMenuItem<String>(
-                                            value: 'delete',
-                                            child: Text('Delete'),
-                                          ),
-                                        ];
-                                      } else {
-                                        return [];
-                                      }
-                                    },
-                                  ),
-                                ),
-                              );
-                            },
+                        Text(
+                          record.fileName,
+                          style: const TextStyle(
+                            color: _T.textPri,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: _buildPageButtons(),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.access_time_rounded,
+                              size: 11,
+                              color: _T.textMut,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              timeAgo,
+                              style: const TextStyle(
+                                color: _T.textMut,
+                                fontSize: 11,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                record.status,
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (record.reference.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            'Ref: ${record.reference}',
+                            style: const TextStyle(
+                              color: _T.textMut,
+                              fontSize: 11,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
+                        ],
                       ],
-                    );
-                  }
-                },
+                    ),
+                  ),
+                  // Action button
+                  PopupMenuButton<String>(
+                    icon: const Icon(
+                      Icons.more_vert_rounded,
+                      color: _T.textSec,
+                      size: 20,
+                    ),
+                    color: _T.cardHover,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: const BorderSide(color: _T.border),
+                    ),
+                    onSelected: (val) async {
+                      if (val == 'view') {
+                        final auth = Provider.of<AuthProvider>(
+                          context,
+                          listen: false,
+                        );
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ViewScreen(
+                              invoiceNo: record.reference,
+                              userId: auth.userId,
+                            ),
+                          ),
+                        );
+                      } else if (val == 'delete') {
+                        final ok = await _showDeleteDialog();
+                        if (ok == true) _deleteRecord(record);
+                      }
+                    },
+                    itemBuilder: (_) {
+                      if (record.status == 'Confirmed') {
+                        return [
+                          PopupMenuItem(
+                            value: 'view',
+                            child: Row(
+                              children: const [
+                                Icon(
+                                  Icons.visibility_rounded,
+                                  size: 16,
+                                  color: _T.accent,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'View Invoice',
+                                  style: TextStyle(
+                                    color: _T.textPri,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ];
+                      } else {
+                        return [
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: const [
+                                Icon(
+                                  Icons.delete_outline_rounded,
+                                  size: 16,
+                                  color: _T.red,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Delete',
+                                  style: TextStyle(color: _T.red, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ];
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<bool?> _showDeleteDialog() {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _T.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: _T.border),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: _T.red, size: 22),
+            SizedBox(width: 10),
+            Text(
+              'Delete Record',
+              style: TextStyle(
+                color: _T.textPri,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
         ),
+        content: const Text(
+          'This action cannot be undone. Are you sure you want to delete this record?',
+          style: TextStyle(color: _T.textSec, fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: _T.textSec)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _T.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: 0,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPagination() {
+    return Container(
+      color: _T.surface,
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Page $_currentPage of $_totalPages',
+            style: const TextStyle(color: _T.textMut, fontSize: 12),
+          ),
+          Row(
+            children: [
+              _pageBtn(
+                Icons.first_page_rounded,
+                _currentPage > 1,
+                () => setState(() => _currentPage = 1),
+              ),
+              const SizedBox(width: 4),
+              _pageBtn(
+                Icons.chevron_left_rounded,
+                _currentPage > 1,
+                () => setState(() => _currentPage--),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _T.accent.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _T.accent.withOpacity(0.3)),
+                ),
+                child: Text(
+                  '$_currentPage',
+                  style: const TextStyle(
+                    color: _T.accent,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _pageBtn(
+                Icons.chevron_right_rounded,
+                _currentPage < _totalPages,
+                () => setState(() => _currentPage++),
+              ),
+              const SizedBox(width: 4),
+              _pageBtn(
+                Icons.last_page_rounded,
+                _currentPage < _totalPages,
+                () => setState(() => _currentPage = _totalPages),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pageBtn(IconData icon, bool enabled, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: enabled ? _T.card : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: enabled ? _T.border : Colors.transparent),
+        ),
+        child: Icon(icon, size: 18, color: enabled ? _T.textSec : _T.textMut),
+      ),
+    );
+  }
+
+  Widget _buildError(String err) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline_rounded, size: 48, color: _T.red),
+          const SizedBox(height: 12),
+          Text(
+            'Something went wrong',
+            style: const TextStyle(
+              color: _T.textPri,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(err, style: const TextStyle(color: _T.textMut, fontSize: 12)),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _T.accent,
+              elevation: 0,
+            ),
+            onPressed: () => setState(() => _futureRecords = _fetchRecords()),
+            icon: const Icon(Icons.refresh_rounded, size: 16),
+            label: const Text('Retry'),
+          ),
+        ],
       ),
     );
   }
 }
 
+// ─── View / Invoice Screen ─────────────────────────────────────────
 class ViewScreen extends StatefulWidget {
   final String invoiceNo;
   final String userId;
@@ -561,16 +856,19 @@ class _ViewScreenState extends State<ViewScreen> {
   @override
   void initState() {
     super.initState();
-    fetchInvoice();
+    _fetchInvoice();
   }
 
-  Future<void> fetchInvoice() async {
-    final url =
-        'https://igb-fems.com/LIVE/mobile_php/sales_info.php?InvoiceNo=${widget.invoiceNo}&UserID=${widget.userId}';
+  Future<void> _fetchInvoice() async {
     try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      final res = await http.get(
+        Uri.parse(
+          'https://igb-fems.com/LIVE/mobile_php/sales_info.php'
+          '?InvoiceNo=${widget.invoiceNo}&UserID=${widget.userId}',
+        ),
+      );
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
         if (data['result'] == 'Success' &&
             data['invoices'] is List &&
             (data['invoices'] as List).isNotEmpty) {
@@ -586,7 +884,7 @@ class _ViewScreenState extends State<ViewScreen> {
         }
       } else {
         setState(() {
-          error = 'HTTP ${response.statusCode}';
+          error = 'HTTP ${res.statusCode}';
           isLoading = false;
         });
       }
@@ -598,288 +896,451 @@ class _ViewScreenState extends State<ViewScreen> {
     }
   }
 
+  double _parseNum(dynamic v) {
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? 0;
+    return 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _T.bg,
       appBar: AppBar(
-        title: const Text('Sales / Invoices'),
-        backgroundColor: const Color(0xFF121826),
-        foregroundColor: Colors.white,
+        backgroundColor: _T.surface,
+        elevation: 0,
+        foregroundColor: _T.textPri,
+        title: const Text(
+          'Invoice Detail',
+          style: TextStyle(
+            color: _T.textPri,
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: _T.border),
+        ),
       ),
-      backgroundColor: const Color(0xFF121826),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: _T.accent))
           : error.isNotEmpty
           ? Center(
               child: Text(
                 'Error: $error',
-                style: TextStyle(color: Colors.white),
+                style: const TextStyle(color: _T.red),
               ),
             )
           : invoiceData == null
           ? const Center(
-              child: Text('No data', style: TextStyle(color: Colors.white)),
+              child: Text('No data', style: TextStyle(color: _T.textMut)),
             )
-          : Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: SingleChildScrollView(
-                child: Card(
-                  color: const Color(0xFF1E2235),
-                  elevation: 8,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(15.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Header
-                        Center(
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.receipt_long,
-                                size: 48,
-                                color: Colors.white,
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                'RECEIPT',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 1.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Divider(
-                          thickness: 2,
-                          color: Colors.white10,
-                          height: 30,
-                        ),
-                        // Invoice Info
-                        Container(
-                          padding: EdgeInsets.all(12),
+          : _buildInvoice(),
+    );
+  }
 
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Document #: ${invoiceData!['DocumentNo']}',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                'Client: ${invoiceData!['ClientName']}',
-                                style: TextStyle(color: Colors.white70),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                'Date: ${invoiceData!['TransactionDate']}',
-                                style: TextStyle(color: Colors.white70),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                'Status: ${invoiceData!['InvoiceStatus']}',
-                                style: TextStyle(color: Colors.white70),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                'TIN: ${invoiceData!['TIN']}',
-                                style: TextStyle(color: Colors.white70),
-                              ),
-                            ],
+  Widget _buildInvoice() {
+    final inv = invoiceData!;
+    final status = inv['InvoiceStatus'] ?? '';
+    final isConf = status == 'Confirmed';
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Header card ──
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_T.accent.withOpacity(0.2), _T.card],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _T.accent.withOpacity(0.3)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _T.accent.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.receipt_long_rounded,
+                    color: _T.accent,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  inv['DocumentNo'] ?? '—',
+                  style: const TextStyle(
+                    color: _T.textPri,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isConf
+                        ? _T.green.withOpacity(0.12)
+                        : _T.amber.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isConf
+                          ? _T.green.withOpacity(0.3)
+                          : _T.amber.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Text(
+                    status,
+                    style: TextStyle(
+                      color: isConf ? _T.green : _T.amber,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // ── Info card ──
+          _infoCard([
+            _infoRow(
+              Icons.person_outline_rounded,
+              'Client',
+              inv['ClientName'] ?? '—',
+            ),
+            _infoRow(
+              Icons.calendar_today_rounded,
+              'Date',
+              inv['TransactionDate'] ?? '—',
+            ),
+            _infoRow(Icons.badge_outlined, 'TIN', inv['TIN'] ?? '—'),
+          ]),
+
+          const SizedBox(height: 14),
+
+          // ── Items ──
+          Container(
+            decoration: BoxDecoration(
+              color: _T.card,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _T.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.list_alt_rounded,
+                        color: _T.accent,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Line Items',
+                        style: TextStyle(
+                          color: _T.textPri,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${(inv['detail'] as List).length} item(s)',
+                        style: const TextStyle(color: _T.textMut, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                // Header row
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _T.accent.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Description',
+                          style: TextStyle(
+                            color: _T.textSec,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        SizedBox(height: 20),
-                        // Items Header
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            vertical: 8,
-                            horizontal: 12,
+                      ),
+                      SizedBox(width: 8),
+                      SizedBox(
+                        width: 36,
+                        child: Text(
+                          'Qty',
+                          style: TextStyle(
+                            color: _T.textSec,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
                           ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF8f72ec).withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  '',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: 10),
-                              SizedBox(
-                                width: 50,
-                                child: Text(
-                                  'Qty',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: 10),
-                              SizedBox(
-                                width: 80,
-                                child: Text(
-                                  'Price',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: 10),
-                              SizedBox(
-                                width: 80,
-                                child: Text(
-                                  'Total',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        Divider(color: Colors.transparent, height: 20),
-                        // Items
-                        ...(invoiceData!['detail'] as List<dynamic>).map(
-                          (item) => Container(
-                            margin: EdgeInsets.only(bottom: 8),
-                            padding: EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF121826),
-                              borderRadius: BorderRadius.circular(6),
+                      ),
+                      SizedBox(width: 8),
+                      SizedBox(
+                        width: 72,
+                        child: Text(
+                          'Price',
+                          style: TextStyle(
+                            color: _T.textSec,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      SizedBox(
+                        width: 72,
+                        child: Text(
+                          'Total',
+                          style: TextStyle(
+                            color: _T.textSec,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                ...(inv['detail'] as List).asMap().entries.map((entry) {
+                  final i = entry.key;
+                  final item = entry.value;
+                  final isEven = i % 2 == 0;
+                  return Container(
+                    margin: const EdgeInsets.fromLTRB(12, 2, 12, 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isEven
+                          ? _T.surface.withOpacity(0.5)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item['Description'] ?? '',
+                            style: const TextStyle(
+                              color: _T.textPri,
+                              fontSize: 12,
                             ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    item['Description'],
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(width: 10),
-                                SizedBox(
-                                  width: 50,
-                                  child: Text(
-                                    item['Qty'],
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                ),
-                                SizedBox(width: 10),
-                                SizedBox(
-                                  width: 80,
-                                  child: Text(
-                                    formatter.format(
-                                      item['Price'] is String
-                                          ? double.parse(item['Price'])
-                                          : item['Price'],
-                                    ),
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                ),
-                                SizedBox(width: 10),
-                                SizedBox(
-                                  width: 80,
-                                  child: Text(
-                                    formatter.format(
-                                      item['Total'] is String
-                                          ? double.parse(item['Total'])
-                                          : item['Total'],
-                                    ),
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
                           ),
                         ),
-                        Divider(
-                          thickness: 1,
-                          color: Colors.transparent,
-                          height: 10,
-                        ),
-                        // Totals
-                        Container(
-                          padding: EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF8f72ec).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: const Color(0xFF8f72ec),
-                              width: 1,
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 36,
+                          child: Text(
+                            '${item['Qty']}',
+                            style: const TextStyle(
+                              color: _T.textSec,
+                              fontSize: 12,
                             ),
+                            textAlign: TextAlign.center,
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    'Subtotal: ${formatter.format(invoiceData!['SubTotal'] is String ? double.parse(invoiceData!['SubTotal']) : invoiceData!['SubTotal'])}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Discount: ${formatter.format(invoiceData!['DiscountAmount'] is String ? double.parse(invoiceData!['DiscountAmount']) : invoiceData!['DiscountAmount'])}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Income Tax: ${formatter.format(invoiceData!['2307_IT'] is String ? double.parse(invoiceData!['2307_IT']) : invoiceData!['2307_IT'])}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'Grand Total: ${formatter.format(invoiceData!['Total'] is String ? double.parse(invoiceData!['Total']) : invoiceData!['Total'])}',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF8f72ec),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 72,
+                          child: Text(
+                            formatter.format(_parseNum(item['Price'])),
+                            style: const TextStyle(
+                              color: _T.textSec,
+                              fontSize: 12,
+                            ),
+                            textAlign: TextAlign.right,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 72,
+                          child: Text(
+                            formatter.format(_parseNum(item['Total'])),
+                            style: const TextStyle(
+                              color: _T.textPri,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            textAlign: TextAlign.right,
                           ),
                         ),
                       ],
                     ),
-                  ),
+                  );
+                }),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // ── Totals ──
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _T.card,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _T.border),
+            ),
+            child: Column(
+              children: [
+                _totalRow(
+                  'Subtotal',
+                  formatter.format(_parseNum(inv['SubTotal'])),
+                  _T.textSec,
+                  false,
                 ),
+                const SizedBox(height: 8),
+                _totalRow(
+                  'Discount',
+                  '- ${formatter.format(_parseNum(inv['DiscountAmount']))}',
+                  _T.red,
+                  false,
+                ),
+                const SizedBox(height: 8),
+                _totalRow(
+                  'Income Tax',
+                  formatter.format(_parseNum(inv['2307_IT'])),
+                  _T.textSec,
+                  false,
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(color: _T.border, height: 1),
+                ),
+                _totalRow(
+                  'Grand Total',
+                  '₱ ${formatter.format(_parseNum(inv['Total']))}',
+                  _T.accent,
+                  true,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoCard(List<Widget> rows) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _T.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _T.border),
+      ),
+      child: Column(
+        children: rows
+            .map(
+              (w) =>
+                  Padding(padding: const EdgeInsets.only(bottom: 10), child: w),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: _T.accent.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Icon(icon, color: _T.accent, size: 14),
+        ),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: _T.textMut,
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
               ),
             ),
+            const SizedBox(height: 1),
+            Text(
+              value,
+              style: const TextStyle(
+                color: _T.textPri,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _totalRow(String label, String value, Color color, bool isBold) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: isBold ? _T.textPri : _T.textSec,
+            fontSize: isBold ? 15 : 13,
+            fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: isBold ? 18 : 13,
+            fontWeight: isBold ? FontWeight.w800 : FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }

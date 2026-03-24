@@ -86,6 +86,18 @@ class AppDrawer extends StatelessWidget {
               Navigator.pushReplacementNamed(context, '/accountingPeriod');
             },
           ),
+          ListTile(
+            leading: Icon(Icons.fingerprint, color: Colors.white),
+            title: Text(
+              'Enable Biometric',
+              style: TextStyle(color: Colors.white),
+            ),
+            selected: selectedIndex == 7,
+            selectedTileColor: Color(0xFF101222),
+            onTap: () {
+              Navigator.pushReplacementNamed(context, '/biometric');
+            },
+          ),
           Spacer(),
           ListTile(
             leading: Icon(Icons.logout, color: Colors.white),

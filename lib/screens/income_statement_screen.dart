@@ -62,99 +62,119 @@ class _IncomeStatementScreenState extends State<IncomeStatementScreen> {
     }
   }
 
+  // ─── Date picker tile ────────────────────────────────────────────────────────
+  Widget _datePickerTile({required bool isFrom, bool compact = false}) {
+    return GestureDetector(
+      onTap: () => _pickDate(isFrom: isFrom),
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(
+          vertical: compact ? 10 : 14,
+          horizontal: 12,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1e2235),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          isFrom
+              ? (_dateFrom != null
+                    ? DateFormat("MMM yyyy").format(_dateFrom!)
+                    : "Date From")
+              : (_dateTo != null
+                    ? DateFormat("MMM yyyy").format(_dateTo!)
+                    : "Date To"),
+          style: TextStyle(color: Colors.white, fontSize: compact ? 14 : 16),
+        ),
+      ),
+    );
+  }
+
+  // ─── Shared button style ─────────────────────────────────────────────────────
+  ButtonStyle _buttonStyle({bool compact = false}) => ElevatedButton.styleFrom(
+    backgroundColor: const Color(0xFF8f72ec),
+    foregroundColor: Colors.white,
+    padding: EdgeInsets.symmetric(vertical: compact ? 10 : 14, horizontal: 24),
+  );
+
+  // ─── Generate button ─────────────────────────────────────────────────────────
+  Widget _generateButton({bool compact = false}) {
+    return SizedBox(
+      width: double.infinity,
+      height: compact ? 42 : null,
+      child: ElevatedButton(
+        onPressed: () {
+          if (_dateFrom == null || _dateTo == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Please select both dates")),
+            );
+            return;
+          }
+          final displayFrom = DateFormat("MMM yyyy").format(_dateFrom!);
+          final displayTo = DateFormat("MMM yyyy").format(_dateTo!);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Generating Trial Balance from $displayFrom to $displayTo',
+              ),
+            ),
+          );
+        },
+        style: _buttonStyle(compact: compact),
+        child: Text(
+          "Generate Report",
+          style: TextStyle(fontSize: compact ? 14 : 16),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // ── Detect orientation ────────────────────────────────────────────────────
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Income Statement')),
       drawer: AppDrawer(selectedIndex: 6),
       backgroundColor: const Color(0xFF121826),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GestureDetector(
-                onTap: () => _pickDate(isFrom: true),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 14,
-                    horizontal: 12,
-                  ),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1e2235),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _dateFrom != null
-                        ? DateFormat("MMM yyyy").format(_dateFrom!)
-                        : "Date From",
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
-              ),
-
-              GestureDetector(
-                onTap: () => _pickDate(isFrom: false),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 14,
-                    horizontal: 12,
-                  ),
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1e2235),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _dateTo != null
-                        ? DateFormat("MMM yyyy").format(_dateTo!)
-                        : "Date To",
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
-              ),
-
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (_dateFrom == null || _dateTo == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Please select both dates"),
-                        ),
-                      );
-                      return;
-                    }
-                    final displayFrom = DateFormat(
-                      "MMM yyyy",
-                    ).format(_dateFrom!);
-                    final displayTo = DateFormat("MMM yyyy").format(_dateTo!);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Generating Trial Balance from $displayFrom to $displayTo',
-                        ),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF8f72ec),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 14,
-                      horizontal: 24,
-                    ),
-                  ),
-                  child: const Text("Generate Report"),
-                ),
-              ),
-            ],
+          padding: EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: isLandscape ? 8 : 20,
           ),
+          child: isLandscape
+              // ── LANDSCAPE ─────────────────────────────────────────────────
+              ? Row(
+                  children: [
+                    Expanded(
+                      child: _datePickerTile(isFrom: true, compact: true),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _datePickerTile(isFrom: false, compact: true),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: _generateButton(compact: true)),
+                  ],
+                )
+              // ── PORTRAIT ──────────────────────────────────────────────────
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      child: _datePickerTile(isFrom: true),
+                    ),
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 20),
+                      child: _datePickerTile(isFrom: false),
+                    ),
+                    _generateButton(),
+                  ],
+                ),
         ),
       ),
     );

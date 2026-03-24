@@ -32,6 +32,7 @@ import 'screens/cash_disbursement_journal_screen.dart';
 import 'screens/transactions_screen.dart';
 import 'screens/account_payable_screen.dart';
 import 'screens/account_receivable_screen.dart';
+import 'screens/biometric_screen.dart';
 
 void main() {
   // Add global error handling
@@ -92,7 +93,8 @@ class MyApp extends StatelessWidget {
         '/accountingPeriod': (context) => AccountingPeriodScreen(),
         '/reports': (context) => ReportsScreen(),
         '/report_detail': (context) => ReportDetailScreen(
-          reportName: (ModalRoute.of(context)?.settings.arguments as String?) ?? '',
+          reportName:
+              (ModalRoute.of(context)?.settings.arguments as String?) ?? '',
         ),
         '/trial_balance': (context) => TrialBalanceScreen(),
         '/summary': (context) => SummaryScreen(),
@@ -119,6 +121,7 @@ class MyApp extends StatelessWidget {
         '/transactions': (context) => TransactionsScreen(),
         '/account_payable': (context) => AccountPayableScreen(),
         '/account_receivable': (context) => AccountReceivableScreen(),
+        '/biometric': (context) => BiometricScreen(),
       },
       debugShowCheckedModeBanner: false,
     );

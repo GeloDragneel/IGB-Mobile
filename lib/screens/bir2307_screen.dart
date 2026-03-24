@@ -22,6 +22,15 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
   List<Map<String, dynamic>> _header = [];
   Map<String, dynamic> _footer = {};
 
+  final List<Map<String, String>> _reportTypes = [
+    {'value': 'BIR2307_S_VT', 'display': 'Summary of Sales BIR2307 (VT/PT)'},
+    {'value': 'BIR2307_S_IT', 'display': 'Summary of Sales BIR2307 (IT)'},
+    {
+      'value': 'BIR2307_PE_IT',
+      'display': 'Summary of Purchases and Expenses (IT)',
+    },
+  ];
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -69,15 +78,94 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
     }
   }
 
-  final List<Map<String, String>> _reportTypes = [
-    {'value': 'BIR2307_S_VT', 'display': 'Summary of Sales BIR2307 (VT/PT)'},
-    {'value': 'BIR2307_S_IT', 'display': 'Summary of Sales BIR2307 (IT)'},
-    {
-      'value': 'BIR2307_PE_IT',
-      'display': 'Summary of Purchases and Expenses (IT)',
-    },
-  ];
+  // ─── Dropdown widget ─────────────────────────────────────────────────────────
+  Widget _reportTypeDropdown({bool compact = false}) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: compact ? 0 : 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1e2235),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: DropdownButton<String>(
+        value: _selectedReportType,
+        dropdownColor: const Color(0xFF1e2235),
+        style: TextStyle(color: Colors.white, fontSize: compact ? 14 : 16),
+        hint: Text(
+          'Select Report Type',
+          style: TextStyle(color: Colors.white70, fontSize: compact ? 14 : 16),
+        ),
+        isExpanded: true,
+        underline: const SizedBox(),
+        items: _reportTypes.map((type) {
+          return DropdownMenuItem<String>(
+            value: type['value'],
+            child: Text(
+              type['display']!,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: compact ? 13 : 16,
+              ),
+            ),
+          );
+        }).toList(),
+        onChanged: (value) => setState(() => _selectedReportType = value),
+      ),
+    );
+  }
 
+  // ─── Date picker tile ────────────────────────────────────────────────────────
+  Widget _datePickerTile({required bool isFrom, bool compact = false}) {
+    return GestureDetector(
+      onTap: () => _pickDate(isFrom: isFrom),
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(
+          vertical: compact ? 10 : 14,
+          horizontal: 12,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1e2235),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          isFrom
+              ? (_dateFrom != null
+                    ? DateFormat("MMM yyyy").format(_dateFrom!)
+                    : "Date From")
+              : (_dateTo != null
+                    ? DateFormat("MMM yyyy").format(_dateTo!)
+                    : "Date To"),
+          style: TextStyle(color: Colors.white, fontSize: compact ? 14 : 16),
+        ),
+      ),
+    );
+  }
+
+  // ─── Generate button ─────────────────────────────────────────────────────────
+  Widget _generateButton({bool compact = false}) {
+    return SizedBox(
+      width: double.infinity,
+      height: compact ? 42 : null,
+      child: ElevatedButton(
+        onPressed: _isLoading ? null : _generateReport,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF8f72ec),
+          foregroundColor: Colors.white,
+          padding: EdgeInsets.symmetric(
+            vertical: compact ? 10 : 14,
+            horizontal: 24,
+          ),
+        ),
+        child: Text(
+          "Generate Report",
+          style: TextStyle(fontSize: compact ? 14 : 16),
+        ),
+      ),
+    );
+  }
+
+  // ─── Generate logic ──────────────────────────────────────────────────────────
   Future<void> _generateReport() async {
     if (_dateFrom == null || _dateTo == null || _selectedReportType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -91,21 +179,15 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final fromStr = DateFormat('yyyy-MM').format(_dateFrom!);
     final toStr = DateFormat('yyyy-MM').format(_dateTo!);
-
-    // Note: You need to pass the actual clientNum value here
     final url =
         'https://igb-fems.com/LIVE/mobile_php/bir2307.php?userId=${auth.userId}&from=$fromStr&to=$toStr&reportType=$_selectedReportType&branchType=${auth.branchType}&clientNum=${auth.clientNum}';
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final response = await http.get(Uri.parse(url));
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-
         if (data['result'] == 'Success') {
           final invoices = data['invoices'];
           setState(() {
@@ -115,9 +197,7 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
             _isLoading = false;
           });
         } else {
-          setState(() {
-            _isLoading = false;
-          });
+          setState(() => _isLoading = false);
           if (mounted) {
             ScaffoldMessenger.of(
               context,
@@ -125,9 +205,7 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
           }
         }
       } else {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -139,9 +217,7 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
         }
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -150,6 +226,7 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
     }
   }
 
+  // ─── Report table ────────────────────────────────────────────────────────────
   Widget _buildReportTable() {
     if (_reportData.isEmpty) {
       return const Center(
@@ -196,7 +273,7 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
                   ),
                 ),
               );
-            }).toList(),
+            }),
             const DataColumn(
               label: Text(
                 'Total',
@@ -272,7 +349,7 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
                   ),
                 ],
               );
-            }).toList(),
+            }),
             // Footer row
             DataRow(
               color: MaterialStateProperty.all(
@@ -313,7 +390,7 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
                       ],
                     ),
                   );
-                }).toList(),
+                }),
                 DataCell(
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -352,118 +429,77 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
 
   @override
   Widget build(BuildContext context) {
+    // ── Detect orientation ────────────────────────────────────────────────────
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
     return Scaffold(
       appBar: AppBar(title: const Text('BIR2307')),
       drawer: AppDrawer(selectedIndex: 6),
       backgroundColor: const Color(0xFF121826),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: isLandscape ? 8 : 20,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1e2235),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButton<String>(
-                  value: _selectedReportType,
-                  dropdownColor: const Color(0xFF1e2235),
-                  style: const TextStyle(color: Colors.white),
-                  hint: const Text(
-                    'Select Report Type',
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                  isExpanded: true,
-                  underline: const SizedBox(),
-                  items: _reportTypes.map((type) {
-                    return DropdownMenuItem<String>(
-                      value: type['value'],
-                      child: Text(
-                        type['display']!,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedReportType = value;
-                    });
-                  },
-                ),
-              ),
-              GestureDetector(
-                onTap: () => _pickDate(isFrom: true),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 14,
-                    horizontal: 12,
-                  ),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1e2235),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _dateFrom != null
-                        ? DateFormat("MMM yyyy").format(_dateFrom!)
-                        : "Date From",
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
-              ),
-              GestureDetector(
-                onTap: () => _pickDate(isFrom: false),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 14,
-                    horizontal: 12,
-                  ),
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1e2235),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _dateTo != null
-                        ? DateFormat("MMM yyyy").format(_dateTo!)
-                        : "Date To",
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _generateReport,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF8f72ec),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 14,
-                      horizontal: 24,
+              // ── Filter row ──────────────────────────────────────────────
+              if (isLandscape)
+                // LANDSCAPE: dropdown(flex 3) + date from + date to + button
+                // all in one row, dropdown gets more space for its long text
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: _reportTypeDropdown(compact: true),
                     ),
-                  ),
-                  child: const Text("Generate Report"),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: _datePickerTile(isFrom: true, compact: true),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: _datePickerTile(isFrom: false, compact: true),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(flex: 2, child: _generateButton(compact: true)),
+                  ],
+                )
+              else
+                // PORTRAIT: original stacked layout
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      child: _reportTypeDropdown(),
+                    ),
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      child: _datePickerTile(isFrom: true),
+                    ),
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 20),
+                      child: _datePickerTile(isFrom: false),
+                    ),
+                    _generateButton(),
+                  ],
                 ),
-              ),
-              _isLoading
-                  ? const Padding(
-                      padding: EdgeInsets.all(40.0),
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF8f72ec),
-                      ),
-                    )
-                  : _buildReportTable(),
+
+              // ── Table / loading ─────────────────────────────────────────
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.all(40.0),
+                  child: CircularProgressIndicator(color: Color(0xFF8f72ec)),
+                )
+              else
+                _buildReportTable(),
             ],
           ),
         ),
