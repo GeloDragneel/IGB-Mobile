@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
+import '../l10n/app_localizations.dart';
 
 class CashDisbursementJournalScreen extends StatefulWidget {
   const CashDisbursementJournalScreen({super.key});
@@ -95,10 +96,10 @@ class _CashDisbursementJournalScreenState
           isFrom
               ? (_dateFrom != null
                     ? DateFormat("MMM yyyy").format(_dateFrom!)
-                    : "Date From")
+                    : AppLocalizations.of(context).dateFrom)
               : (_dateTo != null
                     ? DateFormat("MMM yyyy").format(_dateTo!)
-                    : "Date To"),
+                    : AppLocalizations.of(context).dateTo),
           style: TextStyle(color: Colors.white, fontSize: compact ? 14 : 16),
         ),
       ),
@@ -121,7 +122,7 @@ class _CashDisbursementJournalScreenState
           ),
         ),
         child: Text(
-          "Generate Report",
+          AppLocalizations.of(context).generateReport,
           style: TextStyle(fontSize: compact ? 14 : 16),
         ),
       ),
@@ -131,9 +132,11 @@ class _CashDisbursementJournalScreenState
   // ─── Generate logic ──────────────────────────────────────────────────────────
   Future<void> _onGeneratePressed() async {
     if (_dateFrom == null || _dateTo == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Please select both dates")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).pleaseSelectBothDates),
+        ),
+      );
       return;
     }
 
@@ -196,13 +199,13 @@ class _CashDisbursementJournalScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cash Disbursement Journal'),
+        title: Text(AppLocalizations.of(context).cashDisbursementJournal),
         actions: [
           if (_trialBalanceData.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.zoom_out_map),
               onPressed: _resetZoom,
-              tooltip: 'Reset Zoom',
+              tooltip: AppLocalizations.of(context).resetZoom,
             ),
         ],
       ),
@@ -254,9 +257,9 @@ class _CashDisbursementJournalScreenState
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _trialBalanceData.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
-                      'No data available',
+                      AppLocalizations.of(context).noDataFound,
                       style: TextStyle(color: Colors.white),
                     ),
                   )
@@ -280,10 +283,10 @@ class _CashDisbursementJournalScreenState
                             dataRowMinHeight: 30,
                             dataRowMaxHeight: 30,
                             headingRowHeight: 30,
-                            columns: const [
+                            columns: [
                               DataColumn(
                                 label: Text(
-                                  'Date',
+                                  AppLocalizations.of(context).date,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -293,7 +296,7 @@ class _CashDisbursementJournalScreenState
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Account ID',
+                                  AppLocalizations.of(context).accountId,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -303,7 +306,7 @@ class _CashDisbursementJournalScreenState
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Invoice/CM #',
+                                  AppLocalizations.of(context).invoiceCMNo,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -313,7 +316,7 @@ class _CashDisbursementJournalScreenState
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Name',
+                                  AppLocalizations.of(context).name,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -323,18 +326,7 @@ class _CashDisbursementJournalScreenState
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Line Description',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ),
-                              DataColumn(
-                                numeric: true,
-                                label: Text(
-                                  'Debit',
+                                  AppLocalizations.of(context).lineDescription,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -345,7 +337,18 @@ class _CashDisbursementJournalScreenState
                               DataColumn(
                                 numeric: true,
                                 label: Text(
-                                  'Credit',
+                                  AppLocalizations.of(context).debit,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              DataColumn(
+                                numeric: true,
+                                label: Text(
+                                  AppLocalizations.of(context).credit,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -465,9 +468,9 @@ class _CashDisbursementJournalScreenState
                                       style: TextStyle(color: Colors.white),
                                     ),
                                   ),
-                                  const DataCell(
+                                  DataCell(
                                     Text(
-                                      'Total',
+                                      AppLocalizations.of(context).total,
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,

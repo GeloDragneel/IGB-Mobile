@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/navigation_drawer.dart';
+import '../l10n/app_localizations.dart';
+import '../widgets/chat_bubble.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -11,61 +13,62 @@ class ReportsScreen extends StatefulWidget {
 class _ReportsScreenState extends State<ReportsScreen> {
   final TextEditingController _searchController = TextEditingController();
 
-  static const List<String> _reportsConst = [
-    'Trial Balance',
-    'Summary',
-    'General Ledger',
-    'Customer Ledger',
-    'E-BIR',
-    'Consolidated Report (Detailed)',
-    'Purchase Report',
-    'Sales Report',
-    'Expense Report',
-    'Import Report',
-    'E-Sub Report',
-    'BIR2307',
-    'Income Statement',
-    'Annual Summary',
-    'Annual Summary - Comparative Income Statement',
-    'Sales Journal',
-    'Purchase Receipts Journal',
-    'Cash Disbursement Journal',
-    'Transactions',
-    'Account Payable',
-    'Account Receivable',
+  // ✅ English keys used for routing only
+  static const List<String> _reportKeys = [
+    'trial_balance',
+    'summary',
+    'general_ledger',
+    'customer_ledger',
+    'e_bir',
+    'consolidated_report_detailed',
+    'purchase_report',
+    'sales_report',
+    'expense_report',
+    'import_report',
+    'e_sub_report',
+    'bir2307',
+    'income_statement',
+    'annual_summary',
+    'annual_summary_comparative',
+    'sales_journal',
+    'purchase_receipts_journal',
+    'cash_disbursement_journal',
+    'transactions',
+    'account_payable',
+    'account_receivable',
   ];
 
   static const Map<String, String> _reportRoutes = {
-    'Trial Balance': '/trial_balance',
-    'Summary': '/summary',
-    'General Ledger': '/general_ledger',
-    'Customer Ledger': '/customer_ledger',
-    'E-BIR': '/e_bir',
-    'Consolidated Report (Detailed)': '/consolidated_report_detailed',
-    'Purchase Report': '/purchase_report',
-    'Sales Report': '/sales_report',
-    'Expense Report': '/expense_report',
-    'Import Report': '/import_report',
-    'E-Sub Report': '/e_sub_report',
-    'BIR2307': '/bir2307',
-    'Income Statement': '/income_statement',
-    'Annual Summary': '/annual_summary',
-    'Annual Summary - Comparative Income Statement':
+    'trial_balance': '/trial_balance',
+    'summary': '/summary',
+    'general_ledger': '/general_ledger',
+    'customer_ledger': '/customer_ledger',
+    'e_bir': '/e_bir',
+    'consolidated_report_detailed': '/consolidated_report_detailed',
+    'purchase_report': '/purchase_report',
+    'sales_report': '/sales_report',
+    'expense_report': '/expense_report',
+    'import_report': '/import_report',
+    'e_sub_report': '/e_sub_report',
+    'bir2307': '/bir2307',
+    'income_statement': '/income_statement',
+    'annual_summary': '/annual_summary',
+    'annual_summary_comparative':
         '/annual_summary_comparative_income_statement',
-    'Sales Journal': '/sales_journal',
-    'Purchase Receipts Journal': '/purchase_receipts_journal',
-    'Cash Disbursement Journal': '/cash_disbursement_journal',
-    'Transactions': '/transactions',
-    'Account Payable': '/account_payable',
-    'Account Receivable': '/account_receivable',
+    'sales_journal': '/sales_journal',
+    'purchase_receipts_journal': '/purchase_receipts_journal',
+    'cash_disbursement_journal': '/cash_disbursement_journal',
+    'transactions': '/transactions',
+    'account_payable': '/account_payable',
+    'account_receivable': '/account_receivable',
   };
 
-  List<String> _filteredReports = [];
+  List<String> _filteredKeys = [];
 
   @override
   void initState() {
     super.initState();
-    _filteredReports = List.from(_reportsConst)..sort();
+    _filteredKeys = List.from(_reportKeys);
     _searchController.addListener(_onSearchChanged);
   }
 
@@ -78,41 +81,47 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   void _onSearchChanged() {
     final query = _searchController.text.toLowerCase();
+    final loc = AppLocalizations.of(context);
     setState(() {
-      _filteredReports =
-          _reportsConst
-              .where((report) => report.toLowerCase().contains(query))
-              .toList()
-            ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      _filteredKeys = _reportKeys.where((key) {
+        final translated = loc.translate(key).toLowerCase();
+        return translated.contains(query);
+      }).toList();
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Reports')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context).reports)),
       drawer: AppDrawer(selectedIndex: 6),
       backgroundColor: const Color(0xFF121826),
-      body: Padding(
-        padding: const EdgeInsets.all(10.0),
-        child: Column(
-          children: [
-            _buildSearchField(),
-            const SizedBox(height: 10),
-            Expanded(
-              child: ListView.builder(
-                itemCount: _filteredReports.length,
-                itemBuilder: (context, index) {
-                  final report = _filteredReports[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _buildReportCard(context, report),
-                  );
-                },
-              ),
+      body: Stack(
+        // 👈 Wrap with Stack
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(10.0),
+            child: Column(
+              children: [
+                _buildSearchField(),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _filteredKeys.length,
+                    itemBuilder: (context, index) {
+                      final key = _filteredKeys[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _buildReportCard(context, key),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          const ChatBubble(), // 👈 Add ChatBubble here
+        ],
       ),
     );
   }
@@ -122,7 +131,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       controller: _searchController,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
-        hintText: 'Search reports...',
+        hintText: AppLocalizations.of(context).searchReport,
         hintStyle: const TextStyle(color: Colors.white54),
         prefixIcon: const Icon(Icons.search, color: Colors.white),
         filled: true,
@@ -136,12 +145,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _buildReportCard(BuildContext context, String reportName) {
+  Widget _buildReportCard(BuildContext context, String key) {
+    final loc = AppLocalizations.of(context);
     return Card(
       color: const Color(0xFF101222),
       child: InkWell(
         onTap: () {
-          Navigator.pushNamed(context, _reportRoutes[reportName]!);
+          Navigator.pushNamed(context, _reportRoutes[key]!);
         },
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -151,7 +161,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
-                  reportName,
+                  loc.translate(key), // ✅ shows translated name
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,

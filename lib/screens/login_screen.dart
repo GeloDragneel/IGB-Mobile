@@ -5,7 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../providers/auth_provider.dart';
+import '../providers/locale_provider.dart';
+import '../providers/chat_provider.dart';
+import '../l10n/app_localizations.dart';
 import 'dashboard.dart';
+import 'chat_list_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -120,7 +124,10 @@ class _LoginScreenState extends State<LoginScreen>
 
       if (_registeredAccounts.isEmpty) {
         setState(() => _isAuthenticating = false);
-        _showSnackBar('No biometric registered. Please register first.', false);
+        _showSnackBar(
+          AppLocalizations.of(context).noBiometricRegistered,
+          false,
+        );
         return;
       }
 
@@ -143,10 +150,7 @@ class _LoginScreenState extends State<LoginScreen>
 
       if (bioUsername.isEmpty || bioPassword.isEmpty) {
         setState(() => _isAuthenticating = false);
-        _showSnackBar(
-          'Invalid credentials from server. Please re-register.',
-          false,
-        );
+        _showSnackBar(AppLocalizations.of(context).invalidCredentials, false);
         return;
       }
 
@@ -157,17 +161,34 @@ class _LoginScreenState extends State<LoginScreen>
       setState(() => _isAuthenticating = false);
 
       if (result == 'Success') {
-        _showSnackBar('Biometric login successful!', true);
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const Dashboard()),
-        );
+        _showSnackBar(AppLocalizations.of(context).biometricLoginSuccess, true);
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        // Update ChatProvider with user data and reload chats
+        final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+        await chatProvider.reloadAfterLogin();
+
+        if (authProvider.userCount == 'User2') {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const ChatListScreen()),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const Dashboard()),
+          );
+        }
       } else {
-        _showSnackBar('Login failed: $result', false);
+        _showSnackBar(
+          '${AppLocalizations.of(context).loginFailed}: $result',
+          false,
+        );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isAuthenticating = false);
-        _showSnackBar('Authentication error: $e', false);
+        _showSnackBar(
+          '${AppLocalizations.of(context).authenticationError}: $e',
+          false,
+        );
       }
     }
   }
@@ -211,8 +232,8 @@ class _LoginScreenState extends State<LoginScreen>
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
-                    'Select Account',
+                  Text(
+                    AppLocalizations.of(context).selectAccount,
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -224,7 +245,7 @@ class _LoginScreenState extends State<LoginScreen>
               ),
               const SizedBox(height: 8),
               Text(
-                'Choose an account to continue with',
+                AppLocalizations.of(context).chooseAnAccountToContinueWith,
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.4),
                   fontSize: 13,
@@ -341,7 +362,7 @@ class _LoginScreenState extends State<LoginScreen>
                     ),
                   ),
                   child: Text(
-                    'Cancel',
+                    AppLocalizations.of(context).cancel,
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.4),
                       fontSize: 14,
@@ -377,6 +398,100 @@ class _LoginScreenState extends State<LoginScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
       ),
+    );
+  }
+
+  Widget _buildLanguageSwitch() {
+    final localeProvider = Provider.of<LocaleProvider>(context);
+    return GestureDetector(
+      onTap: () => _showLanguageDialog(context, localeProvider),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0C1422),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF8f72ec).withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.language, color: const Color(0xFF8f72ec), size: 18),
+            const SizedBox(width: 4),
+            Text(
+              localeProvider.isEnglish ? 'EN' : '中文',
+              style: const TextStyle(
+                color: Color(0xFF8f72ec),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showLanguageDialog(
+    BuildContext context,
+    LocaleProvider localeProvider,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0C1422),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: const Color(0xFF8f72ec).withOpacity(0.3)),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  localeProvider.isEnglish
+                      ? Icons.check_circle
+                      : Icons.circle_outlined,
+                  color: localeProvider.isEnglish
+                      ? const Color(0xFF8f72ec)
+                      : Colors.white70,
+                ),
+                title: const Text(
+                  'English',
+                  style: TextStyle(color: Colors.white),
+                ),
+                subtitle: const Text(
+                  'EN',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                onTap: () {
+                  localeProvider.setLanguageCode('en');
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  localeProvider.isChinese
+                      ? Icons.check_circle
+                      : Icons.circle_outlined,
+                  color: localeProvider.isChinese
+                      ? const Color(0xFF8f72ec)
+                      : Colors.white70,
+                ),
+                title: const Text('中文', style: TextStyle(color: Colors.white)),
+                subtitle: const Text(
+                  'CN',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                onTap: () {
+                  localeProvider.setLanguageCode('zh');
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -429,314 +544,379 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
           SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 32,
-                ),
-                child: FadeTransition(
-                  opacity: _fadeAnim,
-                  child: SlideTransition(
-                    position: _slideAnim,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+            child: Stack(
+              children: [
+                // Language switch button
+                Positioned(top: 16, right: 16, child: _buildLanguageSwitch()),
+                Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 32,
+                    ),
+                    child: FadeTransition(
+                      opacity: _fadeAnim,
+                      child: SlideTransition(
+                        position: _slideAnim,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFF8f72ec),
-                                    Color(0xFF5B3FD8),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
+                            Row(
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF8f72ec),
+                                        Color(0xFF5B3FD8),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(
+                                          0xFF8f72ec,
+                                        ).withOpacity(0.45),
+                                        blurRadius: 20,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.lock_outline_rounded,
+                                    color: Colors.white,
+                                    size: 22,
+                                  ),
                                 ),
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
+                                const SizedBox(width: 14),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'IGB FEMS',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 2,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Accounting and Business Consultancy',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.3),
+                                        fontSize: 8,
+                                        letterSpacing: 1.5,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 48),
+                            Text(
+                              AppLocalizations.of(context).welcomeBack,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 42,
+                                fontWeight: FontWeight.w800,
+                                height: 1.1,
+                                letterSpacing: -1.5,
+                                shadows: [
+                                  Shadow(
                                     color: const Color(
                                       0xFF8f72ec,
-                                    ).withOpacity(0.45),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 6),
+                                    ).withOpacity(0.3),
+                                    blurRadius: 30,
                                   ),
                                 ],
                               ),
-                              child: const Icon(
-                                Icons.lock_outline_rounded,
-                                color: Colors.white,
-                                size: 22,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              AppLocalizations.of(
+                                context,
+                              ).signinToContinueToYourAccount,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.35),
+                                fontSize: 14,
+                                letterSpacing: 0.2,
                               ),
                             ),
-                            const SizedBox(width: 14),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'IGB FEMS',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 2,
-                                  ),
+                            const SizedBox(height: 40),
+                            Container(
+                              padding: const EdgeInsets.all(28),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0C1422),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: const Color(
+                                    0xFF8f72ec,
+                                  ).withOpacity(0.15),
                                 ),
-                                Text(
-                                  'Accounting and Business Consultancy',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.3),
-                                    fontSize: 8,
-                                    letterSpacing: 1.5,
-                                    fontWeight: FontWeight.w500,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.4),
+                                    blurRadius: 40,
+                                    offset: const Offset(0, 16),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 48),
-                        Text(
-                          'Welcome\nback.',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 42,
-                            fontWeight: FontWeight.w800,
-                            height: 1.1,
-                            letterSpacing: -1.5,
-                            shadows: [
-                              Shadow(
-                                color: const Color(0xFF8f72ec).withOpacity(0.3),
-                                blurRadius: 30,
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Sign in to continue to your account',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.35),
-                            fontSize: 14,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 40),
-                        Container(
-                          padding: const EdgeInsets.all(28),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0C1422),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: const Color(0xFF8f72ec).withOpacity(0.15),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.4),
-                                blurRadius: 40,
-                                offset: const Offset(0, 16),
-                              ),
-                            ],
-                          ),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _buildField(
-                                  label: 'USERNAME',
-                                  hint: 'Enter your username',
-                                  icon: Icons.person_outline_rounded,
-                                  onChanged: (v) => _username = v,
-                                  validator: (v) =>
-                                      v!.isEmpty ? 'Required' : null,
-                                ),
-                                const SizedBox(height: 20),
-                                _buildField(
-                                  label: 'PASSWORD',
-                                  hint: 'Enter your password',
-                                  icon: Icons.lock_outline_rounded,
-                                  onChanged: (v) => _password = v,
-                                  validator: (v) =>
-                                      v!.isEmpty ? 'Required' : null,
-                                  obscure: _obscurePassword,
-                                  suffix: GestureDetector(
-                                    onTap: () => setState(
-                                      () =>
-                                          _obscurePassword = !_obscurePassword,
-                                    ),
-                                    child: Icon(
-                                      _obscurePassword
-                                          ? Icons.visibility_off_outlined
-                                          : Icons.visibility_outlined,
-                                      color: Colors.white.withOpacity(0.3),
-                                      size: 18,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 28),
-                                Row(
+                              child: Form(
+                                key: _formKey,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Expanded(
-                                      child: GestureDetector(
-                                        onTap: () async {
-                                          if (_formKey.currentState!
-                                              .validate()) {
-                                            final String result =
-                                                await Provider.of<AuthProvider>(
+                                    _buildField(
+                                      label: AppLocalizations.of(
+                                        context,
+                                      ).username,
+                                      hint: AppLocalizations.of(
+                                        context,
+                                      ).enterYourUsername,
+                                      icon: Icons.person_outline_rounded,
+                                      onChanged: (v) => _username = v,
+                                      validator: (v) => v!.isEmpty
+                                          ? AppLocalizations.of(
+                                              context,
+                                            ).required
+                                          : null,
+                                    ),
+                                    const SizedBox(height: 20),
+                                    _buildField(
+                                      label: AppLocalizations.of(
+                                        context,
+                                      ).password,
+                                      hint: AppLocalizations.of(
+                                        context,
+                                      ).enterYourPassword,
+                                      icon: Icons.lock_outline_rounded,
+                                      onChanged: (v) => _password = v,
+                                      validator: (v) => v!.isEmpty
+                                          ? AppLocalizations.of(
+                                              context,
+                                            ).required
+                                          : null,
+                                      obscure: _obscurePassword,
+                                      suffix: GestureDetector(
+                                        onTap: () => setState(
+                                          () => _obscurePassword =
+                                              !_obscurePassword,
+                                        ),
+                                        child: Icon(
+                                          _obscurePassword
+                                              ? Icons.visibility_off_outlined
+                                              : Icons.visibility_outlined,
+                                          color: Colors.white.withOpacity(0.3),
+                                          size: 18,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 28),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: GestureDetector(
+                                            onTap: () async {
+                                              if (_formKey.currentState!
+                                                  .validate()) {
+                                                // ✅ cache before async
+                                                final loc = AppLocalizations.of(
                                                   context,
-                                                  listen: false,
-                                                ).login(_username, _password);
-                                            if (mounted) {
-                                              if (result == 'Success') {
-                                                Navigator.of(
+                                                );
+                                                final navigator = Navigator.of(
                                                   context,
-                                                ).pushReplacement(
-                                                  MaterialPageRoute(
-                                                    builder: (_) =>
-                                                        const Dashboard(),
-                                                  ),
                                                 );
-                                              } else {
-                                                _showSnackBar(
-                                                  result == 'NotCorrect'
-                                                      ? 'Invalid username or password.'
-                                                      : result ==
-                                                            'ResetPassword'
-                                                      ? 'Password reset required.'
-                                                      : result == 'Duplicate'
-                                                      ? 'Duplicate user detected.'
-                                                      : result == 'Attempt'
-                                                      ? 'Too many attempts. Try again later.'
-                                                      : 'Login error. Please try again.',
-                                                  false,
-                                                );
+                                                final auth =
+                                                    Provider.of<AuthProvider>(
+                                                      context,
+                                                      listen: false,
+                                                    );
+
+                                                final String result = await auth
+                                                    .login(
+                                                      _username,
+                                                      _password,
+                                                    );
+
+                                                if (!mounted)
+                                                  return; // ✅ single mounted check after await
+
+                                                if (result == 'Success') {
+                                                  // Update ChatProvider with user data and reload chats
+                                                  final chatProvider =
+                                                      Provider.of<ChatProvider>(
+                                                        context,
+                                                        listen: false,
+                                                      );
+                                                  await chatProvider
+                                                      .reloadAfterLogin();
+
+                                                  if (auth.userCount ==
+                                                      'User2') {
+                                                    navigator.pushReplacement(
+                                                      MaterialPageRoute(
+                                                        builder: (_) =>
+                                                            const ChatListScreen(),
+                                                      ),
+                                                    );
+                                                  } else {
+                                                    navigator.pushReplacement(
+                                                      MaterialPageRoute(
+                                                        builder: (_) =>
+                                                            const Dashboard(),
+                                                      ),
+                                                    );
+                                                  }
+                                                } else {
+                                                  _showSnackBar(
+                                                    result == 'NotCorrect'
+                                                        ? loc.invalidUserOrPass
+                                                        : result ==
+                                                              'ResetPassword'
+                                                        ? loc.passwordResetRequired
+                                                        : result == 'Duplicate'
+                                                        ? loc.duplicateUserDetected
+                                                        : result == 'Attempt'
+                                                        ? loc.tooManyAttempts
+                                                        : result ==
+                                                              'InvalidScanAccess'
+                                                        ? loc.invalidScanAccess
+                                                        : loc.loginError,
+                                                    false,
+                                                  );
+                                                }
                                               }
-                                            }
-                                          }
-                                        },
-                                        child: Container(
-                                          height: 52,
-                                          decoration: BoxDecoration(
-                                            gradient: const LinearGradient(
-                                              colors: [
-                                                Color(0xFF8f72ec),
-                                                Color(0xFF5B3FD8),
-                                              ],
-                                              begin: Alignment.topLeft,
-                                              end: Alignment.bottomRight,
+                                            },
+                                            child: Container(
+                                              height: 52,
+                                              decoration: BoxDecoration(
+                                                gradient: const LinearGradient(
+                                                  colors: [
+                                                    Color(0xFF8f72ec),
+                                                    Color(0xFF5B3FD8),
+                                                  ],
+                                                  begin: Alignment.topLeft,
+                                                  end: Alignment.bottomRight,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: const Color(
+                                                      0xFF8f72ec,
+                                                    ).withOpacity(0.4),
+                                                    blurRadius: 20,
+                                                    offset: const Offset(0, 8),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: Center(
+                                                child: Text(
+                                                  AppLocalizations.of(
+                                                    context,
+                                                  ).signin,
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w800,
+                                                    letterSpacing: 1.5,
+                                                  ),
+                                                ),
+                                              ),
                                             ),
-                                            borderRadius: BorderRadius.circular(
-                                              14,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        GestureDetector(
+                                          onTap: _isAuthenticating
+                                              ? null
+                                              : _loginWithBiometric,
+                                          child: Container(
+                                            width: 52,
+                                            height: 52,
+                                            decoration: BoxDecoration(
+                                              color: const Color(
+                                                0xFF8f72ec,
+                                              ).withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                              border: Border.all(
                                                 color: const Color(
                                                   0xFF8f72ec,
-                                                ).withOpacity(0.4),
-                                                blurRadius: 20,
-                                                offset: const Offset(0, 8),
-                                              ),
-                                            ],
-                                          ),
-                                          child: const Center(
-                                            child: Text(
-                                              'SIGN IN',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w800,
-                                                letterSpacing: 1.5,
+                                                ).withOpacity(0.3),
                                               ),
                                             ),
+                                            child: _isAuthenticating
+                                                ? Center(
+                                                    child: SizedBox(
+                                                      width: 20,
+                                                      height: 20,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            color: Colors.white
+                                                                .withOpacity(
+                                                                  0.6,
+                                                                ),
+                                                          ),
+                                                    ),
+                                                  )
+                                                : const Icon(
+                                                    Icons.fingerprint,
+                                                    size: 26,
+                                                    color: Color(0xFF8f72ec),
+                                                  ),
                                           ),
                                         ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    GestureDetector(
-                                      onTap: _isAuthenticating
-                                          ? null
-                                          : _loginWithBiometric,
-                                      child: Container(
-                                        width: 52,
-                                        height: 52,
-                                        decoration: BoxDecoration(
-                                          color: const Color(
-                                            0xFF8f72ec,
-                                          ).withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                          border: Border.all(
-                                            color: const Color(
-                                              0xFF8f72ec,
-                                            ).withOpacity(0.3),
-                                          ),
-                                        ),
-                                        child: _isAuthenticating
-                                            ? Center(
-                                                child: SizedBox(
-                                                  width: 20,
-                                                  height: 20,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        color: Colors.white
-                                                            .withOpacity(0.6),
-                                                      ),
-                                                ),
-                                              )
-                                            : const Icon(
-                                                Icons.fingerprint,
-                                                size: 26,
-                                                color: Color(0xFF8f72ec),
-                                              ),
-                                      ),
+                                      ],
                                     ),
                                   ],
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 24),
+                            Center(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 24,
+                                    height: 1,
+                                    color: Colors.white.withOpacity(0.1),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    AppLocalizations.of(
+                                      context,
+                                    ).registerFingerprintViaEnable,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.2),
+                                      fontSize: 10,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Container(
+                                    width: 24,
+                                    height: 1,
+                                    color: Colors.white.withOpacity(0.1),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 24),
-                        Center(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 24,
-                                height: 1,
-                                color: Colors.white.withOpacity(0.1),
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                'Register fingerprint via Enable Biometric in menu',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.2),
-                                  fontSize: 10,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Container(
-                                width: 24,
-                                height: 1,
-                                color: Colors.white.withOpacity(0.1),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ],

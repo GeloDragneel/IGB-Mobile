@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -14,10 +15,10 @@ import 'dart:convert';
 import '../providers/scan_provider.dart';
 import '../providers/auth_provider.dart';
 import 'package:http_parser/http_parser.dart';
+import '../l10n/app_localizations.dart';
 
 class ExpensesScanDialog extends StatefulWidget {
   final VoidCallback? onUploadSuccess;
-
   const ExpensesScanDialog({super.key, this.onUploadSuccess});
 
   @override
@@ -32,11 +33,24 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
   List<Map<String, String>> _accounts = [];
   String? _selectedAccountCode;
 
+  // ── Design tokens ─────────────────────────────────────────────
+  static const _bg = Color(0xFF0F1623);
+  static const _surface = Color(0xFF1A1F2E);
+  static const _purple = Color(0xFF8F72EC);
+  static const _purpleGlow = Color(0x338F72EC);
+  static const _white = Colors.white;
+  static const _white70 = Color(0xB3FFFFFF);
+  static const _white40 = Color(0x66FFFFFF);
+  static const _white12 = Color(0x1FFFFFFF);
+  static const _white08 = Color(0x14FFFFFF);
+
   @override
   void initState() {
     super.initState();
     _fetchAccounts();
   }
+
+  // ── Unchanged logic ───────────────────────────────────────────
 
   Future<void> _fetchAccounts() async {
     try {
@@ -46,7 +60,6 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
           'https://igb-fems.com/LIVE/mobile_php/charts_expenses.php?userId=${auth.userId}',
         ),
       );
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['result'] == 'Success') {
@@ -54,30 +67,28 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
           setState(() {
             _accounts = invoices
                 .map<Map<String, String>>(
-                  (account) => {
-                    'code': account['AccountCode'].toString(),
-                    'name': account['Account_Name'].toString(),
+                  (a) => {
+                    'code': a['AccountCode'].toString(),
+                    'name': a['Account_Name'].toString(),
                   },
                 )
                 .toList();
           });
         }
       }
-    } catch (e) {
-      // Handle error silently
-    }
+    } catch (_) {}
   }
 
   Future<void> _scanReceipt() async {
     final documentScanner = doc_scanner.DocumentScanner(
-      options: doc_scanner.DocumentScannerOptions(pageLimit: 10),
+      options: doc_scanner.DocumentScannerOptions(pageLimit: 99),
     );
-
     try {
       final result = await documentScanner.scanDocument();
-      if (result.images.isNotEmpty) {
+      final images = result.images;
+      if (images != null && images.isNotEmpty) {
         setState(() {
-          _images = result.images.map((path) => File(path)).toList();
+          _images = images.map((p) => File(p)).toList();
           _isProcessing = true;
         });
         await _performOCR(_images);
@@ -92,7 +103,6 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
   Future<void> _fallbackScanReceipt() async {
     final picker = ImagePicker();
     List<File> selectedImages = [];
-
     bool takeMore = true;
     while (takeMore) {
       final picked = await picker.pickImage(
@@ -102,18 +112,13 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
         maxHeight: 1440,
       );
       if (picked != null) {
-        final croppedFile = await ImageCropper().cropImage(
-          sourcePath: picked.path,
-        );
-        if (croppedFile != null) {
-          selectedImages.add(File(croppedFile.path));
-        }
+        final c = await ImageCropper().cropImage(sourcePath: picked.path);
+        if (c != null) selectedImages.add(File(c.path));
         takeMore = await _askTakeMore();
       } else {
         takeMore = false;
       }
     }
-
     if (selectedImages.isNotEmpty) {
       setState(() {
         _images = selectedImages;
@@ -127,21 +132,47 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
     return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Center(child: Text('Add another receipt?')),
-            content: const Text(
-              'Do you want to scan another receipt?',
+            backgroundColor: _surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Center(
+              child: Text(
+                AppLocalizations.of(context).addAnotherReceipt,
+                style: const TextStyle(
+                  color: _white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            content: Text(
+              AppLocalizations.of(context).doYouWantAnotherReceipt,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.black),
+              style: const TextStyle(color: _white70),
             ),
             actionsAlignment: MainAxisAlignment.center,
             actions: [
-              ElevatedButton(
+              OutlinedButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Done'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _white70,
+                  side: const BorderSide(color: _white12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text(AppLocalizations.of(context).done),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Add More'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _purple,
+                  foregroundColor: _white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text(AppLocalizations.of(context).addMore),
               ),
             ],
           ),
@@ -156,20 +187,12 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
       maxWidth: 2560,
       maxHeight: 1440,
     );
-
     if (pickedFiles.isNotEmpty) {
       List<File> selectedImages = [];
-      for (var pickedFile in pickedFiles) {
-        final croppedFile = await ImageCropper().cropImage(
-          sourcePath: pickedFile.path,
-        );
-        if (croppedFile != null) {
-          selectedImages.add(File(croppedFile.path));
-        } else {
-          selectedImages.add(File(pickedFile.path));
-        }
+      for (var pf in pickedFiles) {
+        final c = await ImageCropper().cropImage(sourcePath: pf.path);
+        selectedImages.add(c != null ? File(c.path) : File(pf.path));
       }
-
       if (selectedImages.isNotEmpty) {
         setState(() {
           _images = selectedImages;
@@ -180,74 +203,34 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
     }
   }
 
-  Future<void> _batchCameraScan() async {
-    final picker = ImagePicker();
-    List<File> selectedImages = [];
-
-    bool takeMore = true;
-    while (takeMore) {
-      final picked = await picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 100,
-        maxWidth: 2560,
-        maxHeight: 1440,
-      );
-      if (picked != null) {
-        final croppedFile = await ImageCropper().cropImage(
-          sourcePath: picked.path,
-        );
-        if (croppedFile != null) {
-          selectedImages.add(File(croppedFile.path));
-        }
-        takeMore = await _askTakeMore();
-      } else {
-        takeMore = false;
-      }
-    }
-
-    if (selectedImages.isNotEmpty) {
-      setState(() {
-        _images = selectedImages;
-        _isProcessing = true;
-      });
-      await _performOCR(_images);
-    }
-  }
-
   Future<void> _performOCR(List<File> imageFiles) async {
+    final loc = AppLocalizations.of(context);
     List<String> allTexts = [];
     final textRecognizer = TextRecognizer();
-
     for (File imageFile in imageFiles) {
       try {
         final inputImage = InputImage.fromFile(imageFile);
-        final RecognizedText recognizedText = await textRecognizer.processImage(
-          inputImage,
-        );
-        allTexts.add(recognizedText.text);
-      } catch (e) {
-        allTexts.add('[OCR failed for this image]');
+        final RecognizedText rt = await textRecognizer.processImage(inputImage);
+        allTexts.add(rt.text);
+      } catch (_) {
+        allTexts.add(loc.ocrFailed);
       }
     }
-
     textRecognizer.close();
-
-    final String combinedText = allTexts.join('\n\n--- Next Receipt ---\n\n');
-
+    final combinedText = allTexts.join('\n\n--- ${loc.nextReceipt} ---\n\n');
+    if (!mounted) return;
     Provider.of<ScanProvider>(
       context,
       listen: false,
     ).setScannedText(combinedText);
-
     setState(() {
       _combinedText = combinedText;
       _isProcessing = false;
     });
   }
 
-  Future<void> _submitReceipts() async {
-    await _createAndUploadPDF(_images, _combinedText);
-  }
+  Future<void> _submitReceipts() async =>
+      await _createAndUploadPDF(_images, _combinedText);
 
   Future<void> _createAndUploadPDF(
     List<File> imageFiles,
@@ -256,107 +239,81 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
     setState(() {
       _isUploading = true;
     });
-
     try {
       final pdf = pw.Document();
-      final texts = combinedText.split('\n\n--- Next Receipt ---\n\n');
-
       for (int i = 0; i < imageFiles.length; i++) {
-        final imageFile = imageFiles[i];
-        final imageBytes = await imageFile.readAsBytes();
-
-        if (imageBytes.isEmpty) {
-          throw Exception('Image $i is empty');
-        }
-
+        final imageBytes = await imageFiles[i].readAsBytes();
+        if (imageBytes.isEmpty) throw Exception('Image $i is empty');
         final image = pw.MemoryImage(imageBytes);
-        final pageText = (i < texts.length) ? texts[i] : '';
-
         pdf.addPage(
           pw.Page(
             pageFormat: PdfPageFormat.a4,
             margin: const pw.EdgeInsets.all(24),
-            build: (pw.Context ctx) {
-              return pw.Center(child: pw.Image(image, fit: pw.BoxFit.contain));
-            },
+            build: (pw.Context ctx) =>
+                pw.Center(child: pw.Image(image, fit: pw.BoxFit.contain)),
           ),
         );
       }
-
+      final pdfBytes = await pdf.save();
+      if (pdfBytes.isEmpty) throw Exception('Generated PDF is empty');
       final output = await getTemporaryDirectory();
       final pdfFile = File(
         '${output.path}/receipts_${DateTime.now().millisecondsSinceEpoch}.pdf',
       );
-
-      final pdfBytes = await pdf.save();
-
-      if (pdfBytes.isEmpty) {
-        throw Exception('Generated PDF is empty');
-      }
-
       await pdfFile.writeAsBytes(pdfBytes, flush: true);
       await Future.delayed(const Duration(milliseconds: 100));
-
-      if (!await pdfFile.exists()) {
-        throw Exception('PDF file was not created');
-      }
-
-      final fileSize = await pdfFile.length();
-      if (fileSize == 0) {
-        throw Exception('PDF file is empty (0 bytes)');
-      }
-
+      if (!await pdfFile.exists()) throw Exception('PDF file was not created');
+      if (await pdfFile.length() == 0) throw Exception('PDF file is empty');
       await _uploadToServer(pdfFile, combinedText);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Receipts uploaded successfully')),
+          SnackBar(
+            backgroundColor: _surface,
+            content: Text(
+              AppLocalizations.of(context).receiptUploadSuccess,
+              style: const TextStyle(color: _white),
+            ),
+          ),
         );
-        widget.onUploadSuccess?.call();
+        try {
+          widget.onUploadSuccess?.call();
+        } catch (_) {}
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF3D1A1A),
+            content: Text(
+              'Upload failed: $e',
+              style: const TextStyle(color: Color(0xFFFF6B6B)),
+            ),
+          ),
+        );
       }
     } finally {
-      if (mounted) {
+      if (mounted)
         setState(() {
           _isUploading = false;
         });
-      }
     }
   }
 
   Future<void> _uploadToServer(File pdfFile, String text) async {
-    if (!await pdfFile.exists()) {
-      throw Exception('PDF file does not exist');
-    }
-
-    final fileSize = await pdfFile.length();
-    if (fileSize == 0) {
-      throw Exception('PDF file is empty before upload');
-    }
-
+    if (!await pdfFile.exists()) throw Exception('PDF file does not exist');
+    if (await pdfFile.length() == 0) throw Exception('PDF file is empty');
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final uri = Uri.parse(
       'https://igb-fems.com/LIVE/mobile_php/upload_receipt.php',
     );
-
     final request = http.MultipartRequest('POST', uri)
       ..fields['userId'] = auth.userId.toString()
       ..fields['text'] = text
       ..fields['type'] = 'expenses'
       ..fields['accountCode'] = _selectedAccountCode ?? '';
-
     final pdfBytes = await pdfFile.readAsBytes();
-
-    if (pdfBytes.isEmpty) {
-      throw Exception('PDF bytes are empty');
-    }
-
+    if (pdfBytes.isEmpty) throw Exception('PDF bytes are empty');
     request.files.add(
       http.MultipartFile.fromBytes(
         'pdf',
@@ -365,42 +322,46 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
         contentType: MediaType('application', 'pdf'),
       ),
     );
-
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
-
-    if (response.statusCode != 200) {
-      throw Exception(
-        'Upload failed: ${response.statusCode} - ${response.body}',
-      );
-    }
-
+    if (response.statusCode != 200)
+      throw Exception('Upload failed: ${response.statusCode}');
     final responseData = json.decode(response.body);
-    if (responseData['success'] != true) {
+    if (responseData['success'] != true)
       throw Exception('Server error: ${responseData['message']}');
-    }
   }
 
   void _showFullImage(File image) {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
+      builder: (_) => Dialog(
         backgroundColor: Colors.black,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
           children: [
-            AppBar(
-              backgroundColor: Colors.black,
-              leading: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white),
-                onPressed: () => Navigator.of(context).pop(),
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Image.file(
+                image,
+                width: double.infinity,
+                height: double.infinity,
+                fit: BoxFit.contain,
               ),
             ),
-            Expanded(
-              child: InteractiveViewer(
-                minScale: 0.5,
-                maxScale: 4.0,
-                child: Image.file(image),
+            Positioned(
+              top: 48,
+              left: 16,
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: const Icon(Icons.close, color: _white, size: 20),
+                ),
               ),
             ),
           ],
@@ -409,277 +370,576 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
     );
   }
 
+  // ── UI ────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    return Dialog.fullscreen(
-      backgroundColor: const Color(0xFF121826),
-      child: SizedBox(
-        width: double.infinity,
-        height: double.infinity,
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(
-                      Icons.receipt_long,
-                      color: Color(0xFF8f72ec),
-                      size: 24,
-                    ),
-                    SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'Expenses',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
+    final loc = AppLocalizations.of(context);
+    final bool busy = _isProcessing || _isUploading;
+    final bool canSubmit = _images.isNotEmpty && !busy;
+    final bool hasImages = _images.isNotEmpty;
 
-                // Scan options
-                Column(
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
+
+    return Scaffold(
+      backgroundColor: _bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildAppBar(loc),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.camera_alt, size: 20),
-                        label: const Text(
-                          'Scan',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF8f72ec),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onPressed: (_isProcessing || _isUploading)
-                            ? null
-                            : _scanReceipt,
+                    // ── Empty state ──────────────────────────
+                    if (!hasImages) ...[
+                      const SizedBox(height: 16),
+                      _buildIllustrationCard(),
+                      const SizedBox(height: 16),
+                      _buildTipBanner(
+                        '💡 ${AppLocalizations.of(context).scanTips}',
                       ),
-                    ),
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.photo_library, size: 20),
-                        label: const Text(
-                          'Upload from Devices',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4CAF50),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onPressed: (_isProcessing || _isUploading)
-                            ? null
-                            : _selectFromGallery,
-                      ),
-                    ),
-                    // Expense Account dropdown placed right after Upload from Devices
+                      const SizedBox(height: 24),
+                      _buildScanButton(loc, busy),
+                      const SizedBox(height: 12),
+                      _buildUploadButton(loc, busy),
+                    ],
+
+                    // ── Has images state ─────────────────────
+                    if (hasImages) ...[
+                      const SizedBox(height: 16),
+                      _buildCompactActionRow(loc, busy),
+                    ],
+
+                    // ── Account selector (always visible) ────
+                    const SizedBox(height: 16),
+                    _buildAccountSectionLabel(loc),
+                    const SizedBox(height: 8),
                     _SearchableAccountField(
                       accounts: _accounts,
                       selectedAccountCode: _selectedAccountCode,
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedAccountCode = value;
-                        });
-                      },
+                      onChanged: (v) =>
+                          setState(() => _selectedAccountCode = v),
                     ),
+
+                    // ── Status card ──────────────────────────
+                    if (busy) ...[
+                      const SizedBox(height: 20),
+                      _buildStatusCard(loc),
+                    ],
+
+                    // ── Images grid ──────────────────────────
+                    if (hasImages) ...[
+                      const SizedBox(height: 24),
+                      _buildImagesHeader(loc),
+                      const SizedBox(height: 12),
+                      _buildImagesGrid(),
+                      const SizedBox(height: 16),
+                      _buildTipBanner(
+                        '💡 ${AppLocalizations.of(context).previewTips}',
+                      ),
+                      const SizedBox(height: 28),
+                      _buildSubmitButton(loc, canSubmit),
+                    ],
                   ],
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-                if (_isProcessing) ...[
-                  const SizedBox(height: 20),
-                  const CircularProgressIndicator(color: Colors.white),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Processing images...',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ],
+  // ── App bar ───────────────────────────────────────────────────
+  Widget _buildAppBar(AppLocalizations loc) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 12, 16, 12),
+      decoration: const BoxDecoration(
+        color: _bg,
+        border: Border(bottom: BorderSide(color: _white08, width: 1)),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: _white, size: 22),
+            onPressed: () => Navigator.of(context).pop(),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+          ),
+          const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: _purpleGlow,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.account_balance_wallet_outlined,
+              color: _purple,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            loc.expenses,
+            style: const TextStyle(
+              color: _white,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                if (_isUploading) ...[
-                  const SizedBox(height: 20),
-                  const CircularProgressIndicator(color: Colors.white),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Uploading...',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ],
-
-                if (_images.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    'Scanned Images (${_images.length})',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    height: 280,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A1D2E),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white12, width: 1),
-                    ),
-                    child: ListView(
-                      padding: const EdgeInsets.all(12),
-                      children: _images
-                          .map(
-                            (image) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12.0),
-                              child: GestureDetector(
-                                onTap: () => _showFullImage(image),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: Colors.white24,
-                                      width: 1,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Colors.black26,
-                                        blurRadius: 4,
-                                        offset: Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Stack(
-                                      children: [
-                                        Image.file(
-                                          image,
-                                          height: 200,
-                                          width: double.infinity,
-                                          fit: BoxFit.contain,
-                                          filterQuality: FilterQuality.high,
-                                        ),
-                                        Positioned(
-                                          top: 8,
-                                          right: 8,
-                                          child: Container(
-                                            padding: const EdgeInsets.all(4),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black54,
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            child: const Icon(
-                                              Icons.zoom_in,
-                                              color: Colors.white,
-                                              size: 16,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ),
-                ],
-
-                if (_images.isNotEmpty && !_isProcessing && !_isUploading) ...[
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _selectedAccountCode != null
-                          ? () => _submitReceipts()
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _selectedAccountCode != null
-                            ? const Color(0xFF8f72ec)
-                            : Colors.grey,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 12,
-                          horizontal: 16,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 2,
+  // ── Illustration card ─────────────────────────────────────────
+  Widget _buildIllustrationCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _white12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 20,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 120,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: _purpleGlow,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: _purpleGlow,
+                        blurRadius: 30,
+                        spreadRadius: 4,
                       ),
-                      child: const Text(
-                        'Submit Receipts',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                    ],
                   ),
-                ],
-
-                const SizedBox(height: 16),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFe57373),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                        horizontal: 16,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
-                    ),
-                    child: const Text(
-                      'Cancel',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  child: const Icon(
+                    Icons.account_balance_wallet_outlined,
+                    color: _purple,
+                    size: 52,
+                  ),
+                ),
+                Positioned(
+                  top: 4,
+                  left: 20,
+                  child: _FloatingBadge(
+                    color: const Color(0xFF4A90D9),
+                    icon: Icons.attach_money,
+                    size: 20,
+                  ),
+                ),
+                Positioned(
+                  top: 0,
+                  right: 16,
+                  child: _FloatingBadge(
+                    color: _purple,
+                    icon: Icons.receipt_outlined,
+                    size: 18,
+                  ),
+                ),
+                Positioned(
+                  bottom: 4,
+                  right: 8,
+                  child: _FloatingBadge(
+                    color: const Color(0xFFE57373),
+                    icon: Icons.trending_down,
+                    size: 18,
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 20),
+          Text(
+            AppLocalizations.of(context).scanYourDocuments,
+            style: TextStyle(
+              color: _white,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            AppLocalizations.of(context).alignYourReceipt,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: _white40, fontSize: 13.5, height: 1.6),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Tip banner ────────────────────────────────────────────────
+  Widget _buildTipBanner(String message) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _purple.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _purple.withOpacity(0.2)),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          color: _purple.withOpacity(0.9),
+          fontSize: 12.5,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  // ── Account section label ─────────────────────────────────────
+  Widget _buildAccountSectionLabel(AppLocalizations loc) {
+    return Row(
+      children: [
+        const Icon(Icons.account_tree_outlined, color: _white40, size: 15),
+        const SizedBox(width: 6),
+        Text(
+          loc.selectExpenseAccount,
+          style: const TextStyle(
+            color: _white70,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Scan button ───────────────────────────────────────────────
+  Widget _buildScanButton(AppLocalizations loc, bool busy) {
+    return SizedBox(
+      height: 54,
+      child: ElevatedButton.icon(
+        icon: const Icon(Icons.crop_free_rounded, size: 20),
+        label: Text(
+          loc.scan,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _purple,
+          foregroundColor: _white,
+          disabledBackgroundColor: _purple.withOpacity(0.3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          elevation: 0,
+        ),
+        onPressed: busy ? null : _scanReceipt,
+      ),
+    );
+  }
+
+  // ── Upload button ─────────────────────────────────────────────
+  Widget _buildUploadButton(AppLocalizations loc, bool busy) {
+    return SizedBox(
+      height: 54,
+      child: OutlinedButton.icon(
+        icon: const Icon(Icons.photo_library_outlined, size: 20),
+        label: Text(
+          loc.uploadFromDevices,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _white70,
+          side: const BorderSide(color: _white12, width: 1.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        onPressed: busy ? null : _selectFromGallery,
+      ),
+    );
+  }
+
+  // ── Compact action row ────────────────────────────────────────
+  Widget _buildCompactActionRow(AppLocalizations loc, bool busy) {
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 46,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.camera_alt_rounded, size: 17),
+              label: Text(
+                loc.scan,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _purple,
+                foregroundColor: _white,
+                disabledBackgroundColor: _purple.withOpacity(0.3),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              onPressed: busy ? null : _scanReceipt,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: SizedBox(
+            height: 46,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.photo_library_outlined, size: 17),
+              label: Text(
+                loc.uploadFromDevices,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _white70,
+                side: const BorderSide(color: _white12, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              onPressed: busy ? null : _selectFromGallery,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Status card ───────────────────────────────────────────────
+  Widget _buildStatusCard(AppLocalizations loc) {
+    final label = _isProcessing ? loc.processingImage : loc.uploading;
+    final pct = _isProcessing ? 0.6 : 0.85;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  color: _purple,
+                  strokeWidth: 2.2,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: _white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${(pct * 100).toInt()}%',
+                style: const TextStyle(
+                  color: _purple,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: pct,
+              backgroundColor: _white12,
+              color: _purple,
+              minHeight: 6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Images header ─────────────────────────────────────────────
+  Widget _buildImagesHeader(AppLocalizations loc) {
+    return Row(
+      children: [
+        const Icon(Icons.photo_library_outlined, color: _white40, size: 16),
+        const SizedBox(width: 8),
+        Text(
+          '${loc.scannedImages} (${_images.length})',
+          style: const TextStyle(
+            color: _white,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Images grid ───────────────────────────────────────────────
+  Widget _buildImagesGrid() {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1.1,
+      ),
+      itemCount: _images.length,
+      itemBuilder: (_, i) => _buildImageCard(_images[i], i + 1),
+    );
+  }
+
+  Widget _buildImageCard(File image, int index) {
+    return GestureDetector(
+      onTap: () => _showFullImage(image),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _white12),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x33000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.file(
+                image,
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.high,
+              ),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 50,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [Colors.black87, Colors.transparent],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 8,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _purple.withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '$index',
+                    style: const TextStyle(
+                      color: _white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+              const Positioned(
+                bottom: 8,
+                right: 8,
+                child: Icon(
+                  Icons.zoom_in_rounded,
+                  color: Colors.white70,
+                  size: 18,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Submit button ─────────────────────────────────────────────
+  Widget _buildSubmitButton(AppLocalizations loc, bool canSubmit) {
+    return AnimatedOpacity(
+      opacity: canSubmit ? 1.0 : 0.45,
+      duration: const Duration(milliseconds: 250),
+      child: SizedBox(
+        height: 56,
+        child: ElevatedButton.icon(
+          icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
+          label: Text(
+            loc.submitReceipts,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _purple,
+            foregroundColor: _white,
+            disabledBackgroundColor: _purple.withOpacity(0.35),
+            disabledForegroundColor: _white40,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: canSubmit ? 4 : 0,
+            shadowColor: _purpleGlow,
+          ),
+          onPressed: canSubmit ? _submitReceipts : null,
         ),
       ),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Searchable Account Field
-// ---------------------------------------------------------------------------
+// ── Searchable Account Field ──────────────────────────────────────
 
 class _SearchableAccountField extends StatefulWidget {
   final List<Map<String, String>> accounts;
@@ -704,6 +964,12 @@ class _SearchableAccountFieldState extends State<_SearchableAccountField> {
   bool _isOpen = false;
   List<Map<String, String>> _filtered = [];
   String _displayText = '';
+
+  static const _bg = Color(0xFF0F1623);
+  static const _surface = Color(0xFF1A1F2E);
+  static const _purple = Color(0xFF8F72EC);
+  static const _white = Colors.white;
+  static const _white12 = Color(0x1FFFFFFF);
 
   @override
   void initState() {
@@ -781,141 +1047,140 @@ class _SearchableAccountFieldState extends State<_SearchableAccountField> {
         child: CompositedTransformFollower(
           link: _layerLink,
           showWhenUnlinked: false,
-          offset: Offset(0, size.height + 4),
+          offset: Offset(0, size.height + 6),
           child: Material(
             color: Colors.transparent,
             child: Container(
-              constraints: const BoxConstraints(maxHeight: 220),
+              constraints: const BoxConstraints(maxHeight: 240),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1D2E),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF8f72ec), width: 1),
+                color: _surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _purple, width: 1),
                 boxShadow: const [
                   BoxShadow(
                     color: Colors.black54,
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
+                    blurRadius: 16,
+                    offset: Offset(0, 6),
                   ),
                 ],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Search input inside overlay
+                  // Search field inside overlay
                   Padding(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(10),
                     child: TextField(
                       controller: _searchController,
                       autofocus: true,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                      cursorColor: const Color(0xFF8f72ec),
+                      style: const TextStyle(color: _white, fontSize: 14),
+                      cursorColor: _purple,
                       decoration: InputDecoration(
-                        hintText: 'Search by code or name...',
+                        hintText: AppLocalizations.of(
+                          context,
+                        ).searchByCodeOrName,
                         hintStyle: const TextStyle(
-                          color: Colors.white38,
+                          color: Color(0x66FFFFFF),
                           fontSize: 13,
                         ),
                         prefixIcon: const Icon(
                           Icons.search,
-                          color: Colors.white38,
+                          color: Color(0x66FFFFFF),
                           size: 18,
                         ),
                         filled: true,
-                        fillColor: const Color(0xFF0D1017),
+                        fillColor: _bg,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12,
-                          vertical: 8,
+                          vertical: 10,
                         ),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide.none,
                         ),
                       ),
                       onChanged: _filter,
                     ),
                   ),
-                  const Divider(color: Colors.white12, height: 1),
+                  const Divider(color: _white12, height: 1),
                   // Results list
                   Flexible(
                     child: StatefulBuilder(
-                      builder: (ctx, setInnerState) {
-                        return ListView.builder(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          shrinkWrap: true,
-                          itemCount: _filtered.isEmpty ? 1 : _filtered.length,
-                          itemBuilder: (ctx, index) {
-                            if (_filtered.isEmpty) {
-                              return const Padding(
-                                padding: EdgeInsets.all(16),
-                                child: Text(
-                                  'No accounts found',
-                                  style: TextStyle(
-                                    color: Colors.white38,
-                                    fontSize: 13,
-                                  ),
-                                  textAlign: TextAlign.center,
+                      builder: (ctx, _) => ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        shrinkWrap: true,
+                        itemCount: _filtered.isEmpty ? 1 : _filtered.length,
+                        itemBuilder: (ctx, index) {
+                          if (_filtered.isEmpty) {
+                            return Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Text(
+                                AppLocalizations.of(context).noAccountsFound,
+                                style: const TextStyle(
+                                  color: Color(0x66FFFFFF),
+                                  fontSize: 13,
                                 ),
-                              );
-                            }
-                            final account = _filtered[index];
-                            final isSelected =
-                                account['code'] == widget.selectedAccountCode;
-                            return InkWell(
-                              onTap: () => _selectAccount(account),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
-                                ),
-                                color: isSelected
-                                    ? const Color(0xFF8f72ec).withOpacity(0.2)
-                                    : Colors.transparent,
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(
-                                          0xFF8f72ec,
-                                        ).withOpacity(0.25),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        account['code'] ?? '',
-                                        style: const TextStyle(
-                                          color: Color(0xFF8f72ec),
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        account['name'] ?? '',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 13,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    if (isSelected)
-                                      const Icon(
-                                        Icons.check,
-                                        color: Color(0xFF8f72ec),
-                                        size: 16,
-                                      ),
-                                  ],
-                                ),
+                                textAlign: TextAlign.center,
                               ),
                             );
-                          },
-                        );
-                      },
+                          }
+                          final account = _filtered[index];
+                          final isSelected =
+                              account['code'] == widget.selectedAccountCode;
+                          return InkWell(
+                            onTap: () => _selectAccount(account),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 11,
+                              ),
+                              color: isSelected
+                                  ? _purple.withOpacity(0.15)
+                                  : Colors.transparent,
+                              child: Row(
+                                children: [
+                                  // Code badge
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 7,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: _purple.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      account['code'] ?? '',
+                                      style: const TextStyle(
+                                        color: _purple,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      account['name'] ?? '',
+                                      style: const TextStyle(
+                                        color: _white,
+                                        fontSize: 13,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    const Icon(
+                                      Icons.check_rounded,
+                                      color: _purple,
+                                      size: 16,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ],
@@ -942,41 +1207,98 @@ class _SearchableAccountFieldState extends State<_SearchableAccountField> {
         onTap: _isOpen ? _closeDropdown : _openDropdown,
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1D2E),
-            borderRadius: BorderRadius.circular(12),
+            color: _surface,
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: _isOpen ? const Color(0xFF8f72ec) : Colors.white24,
-              width: 1,
+              color: _isOpen ? _purple : _white12,
+              width: _isOpen ? 1.5 : 1,
             ),
+            boxShadow: _isOpen
+                ? [
+                    BoxShadow(
+                      color: _purple.withOpacity(0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           child: Row(
             children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: _purple.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                  color: _purple,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: _displayText.isEmpty
-                    ? const Text(
-                        'Select Expense Account',
-                        style: TextStyle(color: Colors.white38, fontSize: 14),
+                    ? Text(
+                        AppLocalizations.of(context).selectExpenseAccount,
+                        style: const TextStyle(
+                          color: Color(0x66FFFFFF),
+                          fontSize: 14,
+                        ),
                       )
                     : Text(
                         _displayText,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
+                        style: const TextStyle(color: _white, fontSize: 14),
                         overflow: TextOverflow.ellipsis,
                       ),
               ),
               Icon(
-                _isOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                color: Colors.white54,
-                size: 20,
+                _isOpen
+                    ? Icons.keyboard_arrow_up_rounded
+                    : Icons.keyboard_arrow_down_rounded,
+                color: _isOpen ? _purple : const Color(0x66FFFFFF),
+                size: 22,
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+// ── Floating badge helper ─────────────────────────────────────────
+
+class _FloatingBadge extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final double size;
+  const _FloatingBadge({
+    required this.color,
+    required this.icon,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size + 12,
+      height: size + 12,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.45),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Icon(icon, color: Colors.white, size: size),
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
+import '../l10n/app_localizations.dart';
 
 class TrialBalanceScreen extends StatefulWidget {
   const TrialBalanceScreen({super.key});
@@ -17,7 +18,6 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
   DateTime? _dateFrom;
   DateTime? _dateTo;
   bool _isLoading = false;
-  bool _showDateFilters = true;
   List<Map<String, dynamic>> _trialBalanceData = [];
   double _totalDebit = 0.0;
   double _totalCredit = 0.0;
@@ -93,7 +93,9 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
         child: Text(
           (isFrom ? _dateFrom : _dateTo) != null
               ? DateFormat("MMM yyyy").format(isFrom ? _dateFrom! : _dateTo!)
-              : (isFrom ? "Date From" : "Date To"),
+              : (isFrom
+                    ? AppLocalizations.of(context).dateFrom
+                    : AppLocalizations.of(context).dateTo),
           style: TextStyle(color: Colors.white, fontSize: compact ? 14 : 16),
         ),
       ),
@@ -109,7 +111,11 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
         onPressed: () async {
           if (_dateFrom == null || _dateTo == null) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Please select both dates")),
+              SnackBar(
+                content: Text(
+                  AppLocalizations.of(context).pleaseSelectBothDates,
+                ),
+              ),
             );
             return;
           }
@@ -176,7 +182,7 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
           ),
         ),
         child: Text(
-          "Generate Report",
+          AppLocalizations.of(context).generateReport,
           style: TextStyle(fontSize: compact ? 14 : 16),
         ),
       ),
@@ -191,13 +197,13 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Trial Balance'),
+        title: Text(AppLocalizations.of(context).trialBalance),
         actions: [
           if (_trialBalanceData.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.zoom_out_map),
               onPressed: _resetZoom,
-              tooltip: 'Reset Zoom',
+              tooltip: AppLocalizations.of(context).resetZoom,
             ),
         ],
       ),
@@ -243,9 +249,9 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _trialBalanceData.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
-                      'No data available',
+                      AppLocalizations.of(context).noDataFound,
                       style: TextStyle(color: Colors.white),
                     ),
                   )
@@ -269,10 +275,10 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
                             dataRowMinHeight: 30,
                             dataRowMaxHeight: 30,
                             headingRowHeight: 30,
-                            columns: const [
+                            columns: [
                               DataColumn(
                                 label: Text(
-                                  'Code',
+                                  AppLocalizations.of(context).accountCode,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -282,18 +288,7 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Account Name',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ),
-                              DataColumn(
-                                numeric: true,
-                                label: Text(
-                                  'Debit',
+                                  AppLocalizations.of(context).accountName,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -304,7 +299,18 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
                               DataColumn(
                                 numeric: true,
                                 label: Text(
-                                  'Credit',
+                                  AppLocalizations.of(context).debit,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              DataColumn(
+                                numeric: true,
+                                label: Text(
+                                  AppLocalizations.of(context).credit,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -384,7 +390,7 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
                                   ),
                                   DataCell(
                                     Text(
-                                      'Total',
+                                      AppLocalizations.of(context).total,
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,

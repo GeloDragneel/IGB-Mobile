@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
+import '../l10n/app_localizations.dart';
 
 class ExpenseReportScreen extends StatefulWidget {
   const ExpenseReportScreen({super.key});
@@ -94,10 +95,10 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
           isFrom
               ? (_dateFrom != null
                     ? DateFormat("MMM yyyy").format(_dateFrom!)
-                    : "Date From")
+                    : AppLocalizations.of(context).dateFrom)
               : (_dateTo != null
                     ? DateFormat("MMM yyyy").format(_dateTo!)
-                    : "Date To"),
+                    : AppLocalizations.of(context).dateTo),
           style: TextStyle(color: Colors.white, fontSize: compact ? 14 : 16),
         ),
       ),
@@ -120,7 +121,11 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
         onPressed: () async {
           if (_dateFrom == null || _dateTo == null) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Please select both dates")),
+              SnackBar(
+                content: Text(
+                  AppLocalizations.of(context).pleaseSelectBothDates,
+                ),
+              ),
             );
             return;
           }
@@ -203,7 +208,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
         },
         style: _buttonStyle(compact: compact),
         child: Text(
-          "Generate Report",
+          AppLocalizations.of(context).generateReport,
           style: TextStyle(fontSize: compact ? 14 : 16),
         ),
       ),
@@ -225,7 +230,10 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
           });
         },
         style: _buttonStyle(compact: compact),
-        child: Text("Reset", style: TextStyle(fontSize: compact ? 14 : 16)),
+        child: Text(
+          AppLocalizations.of(context).reset,
+          style: TextStyle(fontSize: compact ? 14 : 16),
+        ),
       ),
     );
   }
@@ -242,13 +250,13 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Expense Report'),
+        title: Text(AppLocalizations.of(context).expenseReport),
         actions: [
           if (_trialBalanceData.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.zoom_out_map),
               onPressed: _resetZoom,
-              tooltip: 'Reset Zoom',
+              tooltip: AppLocalizations.of(context).resetZoom,
             ),
         ],
       ),
@@ -311,9 +319,9 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _trialBalanceData.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
-                      'No data available',
+                      AppLocalizations.of(context).noDataFound,
                       style: TextStyle(color: Colors.white),
                     ),
                   )
@@ -337,10 +345,10 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                             dataRowMinHeight: 30,
                             dataRowMaxHeight: 30,
                             headingRowHeight: 30,
-                            columns: const [
+                            columns: [
                               DataColumn(
                                 label: Text(
-                                  'Branch Code',
+                                  AppLocalizations.of(context).branchCode,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -350,7 +358,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Date',
+                                  AppLocalizations.of(context).date,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -360,7 +368,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Vendor',
+                                  AppLocalizations.of(context).vendor,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -370,7 +378,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Document',
+                                  AppLocalizations.of(context).documents,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -380,7 +388,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Account Title',
+                                  AppLocalizations.of(context).accountName,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -391,7 +399,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                               DataColumn(
                                 numeric: true,
                                 label: Text(
-                                  'Amount',
+                                  AppLocalizations.of(context).amount,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -401,7 +409,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Currency',
+                                  AppLocalizations.of(context).currency,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -411,7 +419,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Ex Rate',
+                                  AppLocalizations.of(context).exRate,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -433,7 +441,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                               DataColumn(
                                 numeric: true,
                                 label: Text(
-                                  'Net VAT',
+                                  AppLocalizations.of(context).netVAT,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -444,7 +452,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                               DataColumn(
                                 numeric: true,
                                 label: Text(
-                                  'input VAT',
+                                  AppLocalizations.of(context).inputVAT,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -455,7 +463,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                               DataColumn(
                                 numeric: true,
                                 label: Text(
-                                  'VAT Exempt',
+                                  AppLocalizations.of(context).vatExempt,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -466,7 +474,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                               DataColumn(
                                 numeric: true,
                                 label: Text(
-                                  'Zero Rated',
+                                  AppLocalizations.of(context).zeroRated,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -477,7 +485,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                               DataColumn(
                                 numeric: true,
                                 label: Text(
-                                  'Non VAT',
+                                  AppLocalizations.of(context).nonVAT,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -667,7 +675,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
                                   ),
                                   DataCell(
                                     Text(
-                                      'Total',
+                                      AppLocalizations.of(context).total,
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../widgets/navigation_drawer.dart';
+import '../l10n/app_localizations.dart';
 
 const Map<String, String> headerToFooterKey = {
   'Amount': 'F_Total',
@@ -149,7 +150,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         onPressed: () async {
           if (_selectedJournal == null || _selectedYear == null) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Please select journal and year")),
+              SnackBar(
+                content: Text(
+                  AppLocalizations.of(context).pleaseSelectJournalAndYear,
+                ),
+              ),
             );
             return;
           }
@@ -197,7 +202,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         },
         style: _buttonStyle(compact: compact),
         child: Text(
-          "Generate Report",
+          AppLocalizations.of(context).generateReport,
           style: TextStyle(fontSize: compact ? 14 : 16),
         ),
       ),
@@ -211,8 +216,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         int currentYear = _selectedYear ?? DateTime.now().year;
         return AlertDialog(
           backgroundColor: const Color(0xFF1e2235),
-          title: const Text(
-            'Select Year',
+          title: Text(
+            AppLocalizations.of(context).selectYear,
             style: TextStyle(color: Colors.white),
           ),
           content: SizedBox(
@@ -262,7 +267,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
-          _selectedYear != null ? _selectedYear.toString() : "Select Year",
+          _selectedYear != null
+              ? _selectedYear.toString()
+              : AppLocalizations.of(context).selectYear,
           style: TextStyle(color: Colors.white, fontSize: compact ? 14 : 16),
         ),
       ),
@@ -276,7 +283,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Transactions'),
+        title: Text(AppLocalizations.of(context).transactions),
         actions: [
           IconButton(
             icon: const Icon(Icons.zoom_out_map),
@@ -319,22 +326,28 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               color: Colors.white,
                               fontSize: 14,
                             ),
-                            hint: const Text(
-                              'Select Journal',
+                            hint: Text(
+                              AppLocalizations.of(context).selectJournal,
                               style: TextStyle(color: Colors.white70),
                             ),
-                            items: const [
+                            items: [
                               DropdownMenuItem(
                                 value: 'Sales Journal',
-                                child: Text('Sales Journal'),
+                                child: Text(
+                                  AppLocalizations.of(context).salesJournal,
+                                ),
                               ),
                               DropdownMenuItem(
                                 value: 'Purchase Journal',
-                                child: Text('Purchase Journal'),
+                                child: Text(
+                                  AppLocalizations.of(context).purchaseJournal,
+                                ),
                               ),
                               DropdownMenuItem(
                                 value: 'Expenses Journal',
-                                child: Text('Expenses Journal'),
+                                child: Text(
+                                  AppLocalizations.of(context).expensesJournal,
+                                ),
                               ),
                             ],
                             onChanged: (value) {
@@ -373,22 +386,28 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                             color: Colors.white,
                             fontSize: 16,
                           ),
-                          hint: const Text(
-                            'Select Journal',
+                          hint: Text(
+                            AppLocalizations.of(context).selectJournal,
                             style: TextStyle(color: Colors.white70),
                           ),
-                          items: const [
+                          items: [
                             DropdownMenuItem(
                               value: 'Sales Journal',
-                              child: Text('Sales Journal'),
+                              child: Text(
+                                AppLocalizations.of(context).salesJournal,
+                              ),
                             ),
                             DropdownMenuItem(
                               value: 'Purchase Journal',
-                              child: Text('Purchase Journal'),
+                              child: Text(
+                                AppLocalizations.of(context).purchaseJournal,
+                              ),
                             ),
                             DropdownMenuItem(
                               value: 'Expenses Journal',
-                              child: Text('Expenses Journal'),
+                              child: Text(
+                                AppLocalizations.of(context).expensesJournal,
+                              ),
                             ),
                           ],
                           onChanged: (value) {
@@ -419,9 +438,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     ),
                   )
                 : transactions.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
-                      'No data available',
+                      AppLocalizations.of(context).noRecordFound,
                       style: TextStyle(color: Colors.white),
                     ),
                   )

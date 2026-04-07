@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
+import '../l10n/app_localizations.dart';
 
 class CustomerLedgerScreen extends StatefulWidget {
   const CustomerLedgerScreen({super.key});
@@ -80,10 +81,10 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
           isFrom
               ? (_dateFrom != null
                     ? DateFormat("MMM yyyy").format(_dateFrom!)
-                    : "Date From")
+                    : AppLocalizations.of(context).dateFrom)
               : (_dateTo != null
                     ? DateFormat("MMM yyyy").format(_dateTo!)
-                    : "Date To"),
+                    : AppLocalizations.of(context).dateTo),
           style: TextStyle(color: Colors.white, fontSize: compact ? 14 : 16),
         ),
       ),
@@ -106,7 +107,11 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
         onPressed: () {
           if (_dateFrom == null || _dateTo == null) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Please select both dates")),
+              SnackBar(
+                content: Text(
+                  AppLocalizations.of(context).pleaseSelectBothDates,
+                ),
+              ),
             );
             return;
           }
@@ -122,7 +127,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
         },
         style: _buttonStyle(compact: compact),
         child: Text(
-          "Generate Report",
+          AppLocalizations.of(context).generateReport,
           style: TextStyle(fontSize: compact ? 14 : 16),
         ),
       ),
@@ -136,7 +141,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
         MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Customer Ledger')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context).customerLedger)),
       drawer: AppDrawer(selectedIndex: 6),
       backgroundColor: const Color(0xFF121826),
       body: SingleChildScrollView(

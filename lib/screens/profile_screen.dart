@@ -5,7 +5,9 @@ import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:http_parser/http_parser.dart';
 import '../providers/auth_provider.dart';
+import '../providers/locale_provider.dart';
 import '../widgets/navigation_drawer.dart';
+import '../l10n/app_localizations.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -40,8 +42,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
+    final localeProvider = Provider.of<LocaleProvider>(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context).profile)),
       drawer: AppDrawer(selectedIndex: 1),
       backgroundColor: const Color(0xFF121826),
       body: SingleChildScrollView(
@@ -66,7 +70,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      auth.fullName.isNotEmpty ? auth.fullName : 'Full Name',
+                      auth.fullName.isNotEmpty
+                          ? auth.fullName
+                          : AppLocalizations.of(context).fullname,
                       style: const TextStyle(
                         fontSize: 26,
                         color: Colors.white,
@@ -76,7 +82,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      auth.username.isNotEmpty ? auth.username : 'Username',
+                      auth.username.isNotEmpty
+                          ? auth.username
+                          : AppLocalizations.of(context).username,
                       style: const TextStyle(
                         fontSize: 18,
                         color: Colors.white70,
@@ -88,6 +96,96 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 5),
+            // Language Settings Card
+            Card(
+              color: const Color(0xFF1e293b),
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ExpansionTile(
+                title: Text(
+                  AppLocalizations.of(context).languageSettings,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                iconColor: Colors.white,
+                collapsedIconColor: Colors.white,
+                childrenPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.language, color: Colors.white70),
+                    title: Text(
+                      AppLocalizations.of(context).currentLanguage,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    subtitle: Text(
+                      localeProvider.languageName,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                  const Divider(color: Colors.grey),
+                  ListTile(
+                    leading: Icon(
+                      localeProvider.isEnglish
+                          ? Icons.check_circle
+                          : Icons.circle_outlined,
+                      color: localeProvider.isEnglish
+                          ? Colors.blue
+                          : Colors.white70,
+                    ),
+                    title: const Text(
+                      'English',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'EN',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    onTap: () {
+                      localeProvider.setLanguageCode('en');
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      localeProvider.isChinese
+                          ? Icons.check_circle
+                          : Icons.circle_outlined,
+                      color: localeProvider.isChinese
+                          ? Colors.blue
+                          : Colors.white70,
+                    ),
+                    title: const Text(
+                      '中文',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'CN',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    onTap: () {
+                      localeProvider.setLanguageCode('zh');
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 5),
             // Accordion Sections
             Card(
               color: const Color(0xFF1e293b),
@@ -96,8 +194,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: ExpansionTile(
-                title: const Text(
-                  'Personal Information',
+                title: Text(
+                  AppLocalizations.of(context).personalInformation,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -116,8 +214,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Icons.person_outline,
                       color: Colors.white70,
                     ),
-                    title: const Text(
-                      'Full Name',
+                    title: Text(
+                      AppLocalizations.of(context).fullname,
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w500,
@@ -133,8 +231,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Icons.account_circle,
                       color: Colors.white70,
                     ),
-                    title: const Text(
-                      'Username',
+                    title: Text(
+                      AppLocalizations.of(context).username,
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w500,
@@ -156,8 +254,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: ExpansionTile(
-                title: const Text(
-                  'Business Information',
+                title: Text(
+                  AppLocalizations.of(context).businessInformation,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -173,8 +271,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   ListTile(
                     leading: const Icon(Icons.business, color: Colors.white70),
-                    title: const Text(
-                      'Trade Name',
+                    title: Text(
+                      AppLocalizations.of(context).tradeName,
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w500,
@@ -190,8 +288,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Icons.location_on,
                       color: Colors.white70,
                     ),
-                    title: const Text(
-                      'Branch Code',
+                    title: Text(
+                      AppLocalizations.of(context).branchCode,
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w500,
@@ -204,8 +302,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   ListTile(
                     leading: const Icon(Icons.category, color: Colors.white70),
-                    title: const Text(
-                      'Branch Type',
+                    title: Text(
+                      AppLocalizations.of(context).branchType,
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w500,
@@ -218,8 +316,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   ListTile(
                     leading: const Icon(Icons.numbers, color: Colors.white70),
-                    title: const Text(
-                      'Client Number',
+                    title: Text(
+                      AppLocalizations.of(context).clientNumber,
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w500,
@@ -235,8 +333,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Icons.credit_card,
                       color: Colors.white70,
                     ),
-                    title: const Text(
-                      'TIN',
+                    title: Text(
+                      AppLocalizations.of(context).tin,
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w500,
@@ -258,8 +356,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: ExpansionTile(
-                title: const Text(
-                  'Documents',
+                title: Text(
+                  AppLocalizations.of(context).documents,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -368,7 +466,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: ElevatedButton.icon(
                     onPressed: () => _uploadImage(context, id, title, imageUrl),
                     icon: const Icon(Icons.upload),
-                    label: const Text('Change/Upload Image'),
+                    label: Text(AppLocalizations.of(context).changeUploadImage),
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(double.infinity, 50),
                     ),

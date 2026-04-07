@@ -6,6 +6,9 @@ import 'package:provider/provider.dart';
 import '../widgets/navigation_drawer.dart';
 import '../providers/auth_provider.dart';
 import 'expense_scan_dialog.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import '../l10n/app_localizations.dart';
+import '../widgets/chat_bubble.dart';
 
 // ─── Theme Constants ───────────────────────────────────────────────
 class _T {
@@ -15,7 +18,6 @@ class _T {
   static const cardHover = Color(0xFF1A2235);
   static const border = Color(0xFF1E2A3E);
   static const accent = Color(0xFF6C63FF);
-  static const accentSoft = Color(0xFF8F72EC);
   static const green = Color(0xFF10B981);
   static const red = Color(0xFFEF4444);
   static const amber = Color(0xFFF59E0B);
@@ -138,6 +140,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   }
 
   Future<void> _deleteRecord(ExpenseRecord record) async {
+    final loc = AppLocalizations.of(context);
     try {
       final res = await http.get(
         Uri.parse(
@@ -145,10 +148,15 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         ),
       );
       if (res.statusCode == 200) {
-        _showSnack('Record deleted successfully', _T.green);
-        setState(() => _futureRecords = _fetchRecords());
+        _showSnack(loc.recordDeletedSuccess, _T.green);
+        final records = await _fetchRecords();
+        if (!mounted) return;
+        setState(() {
+          _allRecords = records;
+          _filteredRecords = records;
+        });
       } else {
-        _showSnack('Failed to delete record', _T.red);
+        _showSnack(loc.failedToDeleteRecord, _T.red);
       }
     } catch (e) {
       _showSnack('Error: $e', _T.red);
@@ -176,14 +184,24 @@ class _ExpensesScreenState extends State<ExpensesScreen>
 
   String _timeAgo(String dateStr) {
     try {
-      final d = DateFormat('yyyy-MM-dd').parse(dateStr);
-      final diff = DateTime.now().difference(d).inDays;
-      if (diff == 0) return 'Today';
-      if (diff == 1) return 'Yesterday';
-      if (diff < 7) return '$diff days ago';
-      if (diff < 30) return '${(diff / 7).floor()}w ago';
-      return DateFormat('MMM d, y').format(d);
-    } catch (_) {
+      final d = DateFormat('yyyy-MM-dd HH:mm:ss').parse(dateStr);
+      final today = DateTime(
+        DateTime.now().year,
+        DateTime.now().month,
+        DateTime.now().day,
+      );
+      final date = DateTime(d.year, d.month, d.day);
+      final diff = today.difference(date).inDays;
+      if (diff == 0) return AppLocalizations.of(context).today;
+      if (diff == 1) return AppLocalizations.of(context).yesterday;
+      if (diff < 7) return '$diff ${AppLocalizations.of(context).daysAgo}';
+      if (diff < 30) {
+        return '${(diff / 7).floor()} ${AppLocalizations.of(context).weeksAgo}';
+      }
+      return AppLocalizations.of(context).formatDate(d);
+    } catch (e) {
+      final d = DateTime.tryParse(dateStr);
+      if (d != null) return AppLocalizations.of(context).formatDate(d);
       return dateStr;
     }
   }
@@ -205,16 +223,21 @@ class _ExpensesScreenState extends State<ExpensesScreen>
           if (snap.hasError) {
             return _buildError(snap.error.toString());
           }
-          return FadeTransition(
-            opacity: _fadeAnim,
-            child: Column(
-              children: [
-                _buildSearchAndFilter(),
-                _buildSummaryBar(),
-                Expanded(child: _buildList()),
-                if (_totalPages > 1) _buildPagination(),
-              ],
-            ),
+          return Stack(
+            // 👈 Wrap with Stack
+            children: [
+              FadeTransition(
+                opacity: _fadeAnim,
+                child: Column(
+                  children: [
+                    _buildSearchAndFilter(),
+                    Expanded(child: _buildList()),
+                    if (_totalPages > 1) _buildPagination(),
+                  ],
+                ),
+              ),
+              const ChatBubble(),
+            ],
           );
         },
       ),
@@ -241,8 +264,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
             ),
           ),
           const SizedBox(width: 10),
-          const Text(
-            'Expenses',
+          Text(
+            AppLocalizations.of(context).expenses,
             style: TextStyle(
               color: _T.textPri,
               fontSize: 17,
@@ -269,13 +292,19 @@ class _ExpensesScreenState extends State<ExpensesScreen>
               context: context,
               barrierDismissible: false,
               builder: (_) => ExpensesScanDialog(
-                onUploadSuccess: () =>
-                    setState(() => _futureRecords = _fetchRecords()),
+                onUploadSuccess: () async {
+                  final records = await _fetchRecords();
+                  if (!mounted) return;
+                  setState(() {
+                    _allRecords = records;
+                    _filteredRecords = records;
+                  });
+                },
               ),
             ),
             icon: const Icon(Icons.qr_code_scanner_rounded, size: 16),
-            label: const Text(
-              'Scan',
+            label: Text(
+              AppLocalizations.of(context).scan,
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
             ),
           ),
@@ -289,11 +318,53 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   }
 
   Widget _buildSearchAndFilter() {
+    final total = _allRecords.length;
+    final pending = _allRecords.where((r) => r.status == 'Pending').length;
+    final confirmed = _allRecords.where((r) => r.status == 'Confirmed').length;
+    final invalid = _allRecords.where((r) => r.status == 'Invalid').length;
+    final partiallyInvalid = _allRecords
+        .where((r) => r.status == 'Partially Invalid')
+        .length;
+
+    final filters = [
+      {
+        'label': AppLocalizations.of(context).all,
+        'value': 'All',
+        'count': total,
+        'color': _T.accent,
+      },
+      {
+        'label': AppLocalizations.of(context).pending,
+        'value': 'Pending',
+        'count': pending,
+        'color': _T.amber,
+      },
+      {
+        'label': AppLocalizations.of(context).confirmed,
+        'value': 'Confirmed',
+        'count': confirmed,
+        'color': _T.green,
+      },
+      {
+        'label': AppLocalizations.of(context).invalid,
+        'value': 'Invalid',
+        'count': invalid,
+        'color': _T.red,
+      },
+      {
+        'label': AppLocalizations.of(context).partiallyInvalid,
+        'value': 'Partially Invalid',
+        'count': partiallyInvalid,
+        'color': _T.red,
+      },
+    ];
+
     return Container(
       color: _T.surface,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Column(
         children: [
+          // Search bar (unchanged)
           Container(
             decoration: BoxDecoration(
               color: _T.card,
@@ -305,7 +376,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
               style: const TextStyle(color: _T.textPri, fontSize: 14),
               onChanged: (_) => _applyFilters(),
               decoration: InputDecoration(
-                hintText: 'Search by filename…',
+                hintText: AppLocalizations.of(context).searchByFilename,
                 hintStyle: const TextStyle(color: _T.textMut, fontSize: 14),
                 prefixIcon: const Icon(
                   Icons.search_rounded,
@@ -331,99 +402,76 @@ class _ExpensesScreenState extends State<ExpensesScreen>
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            children: ['All', 'Pending', 'Confirmed'].map((f) {
-              final active = _statusFilter == f;
-              Color chipColor;
-              if (f == 'Pending')
-                chipColor = _T.amber;
-              else if (f == 'Confirmed')
-                chipColor = _T.green;
-              else
-                chipColor = _T.accent;
 
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() => _statusFilter = f);
-                    _applyFilters();
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: active ? chipColor.withOpacity(0.15) : _T.card,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: active ? chipColor : _T.border,
-                        width: active ? 1.5 : 1,
+          // ✅ Combined filter + count chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: filters.map((f) {
+                final active = _statusFilter == f['value'];
+                final color = f['color'] as Color;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _statusFilter = f['value'] as String);
+                      _applyFilters();
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
                       ),
-                    ),
-                    child: Text(
-                      f,
-                      style: TextStyle(
-                        color: active ? chipColor : _T.textSec,
-                        fontSize: 12,
-                        fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                      decoration: BoxDecoration(
+                        color: active ? color.withOpacity(0.15) : _T.card,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: active ? color : _T.border,
+                          width: active ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Count badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(active ? 0.25 : 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${f['count']}',
+                              style: TextStyle(
+                                color: color,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          // Label
+                          Text(
+                            f['label'] as String,
+                            style: TextStyle(
+                              color: active ? color : _T.textSec,
+                              fontSize: 12,
+                              fontWeight: active
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryBar() {
-    final total = _allRecords.length;
-    final pending = _allRecords.where((r) => r.status == 'Pending').length;
-    final confirmed = _allRecords.where((r) => r.status == 'Confirmed').length;
-
-    return Container(
-      color: _T.surface,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Row(
-        children: [
-          _summaryChip('Total', total.toString(), _T.textSec),
-          const SizedBox(width: 8),
-          _summaryChip('Pending', pending.toString(), _T.amber),
-          const SizedBox(width: 8),
-          _summaryChip('Confirmed', confirmed.toString(), _T.green),
-        ],
-      ),
-    );
-  }
-
-  Widget _summaryChip(String label, String count, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            count,
-            style: TextStyle(
-              color: color,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
+                );
+              }).toList(),
             ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(color: color.withOpacity(0.7), fontSize: 11),
           ),
         ],
       ),
@@ -442,20 +490,34 @@ class _ExpensesScreenState extends State<ExpensesScreen>
               color: _T.textMut.withOpacity(0.4),
             ),
             const SizedBox(height: 12),
-            const Text(
-              'No records found',
+            Text(
+              AppLocalizations.of(context).noRecordFound,
               style: TextStyle(color: _T.textMut, fontSize: 15),
             ),
           ],
         ),
       );
     }
-
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       itemCount: _pageRecords.length,
       itemBuilder: (context, i) => _buildCard(_pageRecords[i], i),
     );
+  }
+
+  String _translateStatus(String status, BuildContext context) {
+    switch (status) {
+      case 'Pending':
+        return AppLocalizations.of(context).pending;
+      case 'Confirmed':
+        return AppLocalizations.of(context).confirmed;
+      case 'Invalid':
+        return AppLocalizations.of(context).invalid;
+      case 'Partially Invalid':
+        return AppLocalizations.of(context).partiallyInvalid;
+      default:
+        return status;
+    }
   }
 
   Widget _buildCard(ExpenseRecord record, int index) {
@@ -556,7 +618,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                record.status,
+                                _translateStatus(record.status, context),
                                 style: TextStyle(
                                   color: statusColor,
                                   fontSize: 10,
@@ -569,7 +631,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                         if (record.reference.isNotEmpty) ...[
                           const SizedBox(height: 3),
                           Text(
-                            'Ref: ${record.reference}',
+                            '${AppLocalizations.of(context).ref}: ${record.reference}',
                             style: const TextStyle(
                               color: _T.textMut,
                               fontSize: 11,
@@ -607,57 +669,159 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                             ),
                           ),
                         );
+                      } else if (val == 'viewReceipt') {
+                        final auth = Provider.of<AuthProvider>(
+                          context,
+                          listen: false,
+                        );
+                        final pdfUrl =
+                            'https://igb-fems.com/LIVE/pages/get_attachment2.php'
+                            '?ID=${auth.userId}&file=${record.fileName}&folder=Expenses_Transaction';
+
+                        final url =
+                            'https://docs.google.com/viewer?url=${Uri.encodeComponent(pdfUrl)}&embedded=true';
+
+                        showDialog(
+                          context: context,
+                          builder: (_) => Dialog(
+                            backgroundColor: _T.card,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            insetPadding: const EdgeInsets.all(12),
+                            child: SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.85,
+                              child: Column(
+                                children: [
+                                  // Header
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      12,
+                                      8,
+                                      12,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.receipt_long_rounded,
+                                          color: _T.accent,
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            AppLocalizations.of(
+                                              context,
+                                            ).viewReceipt,
+                                            style: TextStyle(
+                                              color: _T.textPri,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.close_rounded,
+                                            color: _T.textSec,
+                                            size: 20,
+                                          ),
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Divider(color: _T.border, height: 1),
+                                  // WebView
+                                  Expanded(
+                                    child: ClipRRect(
+                                      borderRadius: const BorderRadius.only(
+                                        bottomLeft: Radius.circular(16),
+                                        bottomRight: Radius.circular(16),
+                                      ),
+                                      child: WebViewWidget(
+                                        controller: WebViewController()
+                                          ..setJavaScriptMode(
+                                            JavaScriptMode.unrestricted,
+                                          )
+                                          ..loadRequest(Uri.parse(url)),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
                       } else if (val == 'delete') {
                         final ok = await _showDeleteDialog();
                         if (ok == true) _deleteRecord(record);
                       }
                     },
-                    itemBuilder: (_) {
-                      if (record.status == 'Confirmed') {
-                        return [
-                          PopupMenuItem(
-                            value: 'view',
-                            child: Row(
-                              children: const [
-                                Icon(
-                                  Icons.visibility_rounded,
-                                  size: 16,
+                    itemBuilder: (_) => [
+                      if (record.status == 'Pending') ...[
+                        PopupMenuItem(
+                          value: 'viewReceipt',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.visibility_rounded,
+                                size: 16,
+                                color: _T.accent,
+                              ),
+                              SizedBox(width: 10),
+                              Text(
+                                AppLocalizations.of(context).viewReceipt,
+                                style: TextStyle(
                                   color: _T.accent,
+                                  fontSize: 13,
                                 ),
-                                SizedBox(width: 10),
-                                Text(
-                                  'View Receipt',
-                                  style: TextStyle(
-                                    color: _T.textPri,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ];
-                      } else {
-                        return [
-                          PopupMenuItem(
-                            value: 'delete',
-                            child: Row(
-                              children: const [
-                                Icon(
-                                  Icons.delete_outline_rounded,
-                                  size: 16,
-                                  color: _T.red,
-                                ),
-                                SizedBox(width: 10),
-                                Text(
-                                  'Delete',
-                                  style: TextStyle(color: _T.red, fontSize: 13),
-                                ),
-                              ],
-                            ),
+                        ),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.delete_outline_rounded,
+                                size: 16,
+                                color: _T.red,
+                              ),
+                              SizedBox(width: 10),
+                              Text(
+                                AppLocalizations.of(context).delete,
+                                style: TextStyle(color: _T.red, fontSize: 13),
+                              ),
+                            ],
                           ),
-                        ];
-                      }
-                    },
+                        ),
+                      ] else ...[
+                        PopupMenuItem(
+                          value: 'viewReceipt',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.visibility_rounded,
+                                size: 16,
+                                color: _T.accent,
+                              ),
+                              SizedBox(width: 10),
+                              Text(
+                                AppLocalizations.of(context).viewReceipt,
+                                style: TextStyle(
+                                  color: _T.accent,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
@@ -677,12 +841,12 @@ class _ExpensesScreenState extends State<ExpensesScreen>
           borderRadius: BorderRadius.circular(16),
           side: const BorderSide(color: _T.border),
         ),
-        title: const Row(
+        title: Row(
           children: [
             Icon(Icons.warning_amber_rounded, color: _T.red, size: 22),
             SizedBox(width: 10),
             Text(
-              'Delete Record',
+              AppLocalizations.of(context).deleteRecord,
               style: TextStyle(
                 color: _T.textPri,
                 fontSize: 16,
@@ -691,14 +855,17 @@ class _ExpensesScreenState extends State<ExpensesScreen>
             ),
           ],
         ),
-        content: const Text(
-          'This action cannot be undone. Are you sure you want to delete this record?',
+        content: Text(
+          AppLocalizations.of(context).deleteRecordConfirmation,
           style: TextStyle(color: _T.textSec, fontSize: 13, height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: _T.textSec)),
+            child: Text(
+              AppLocalizations.of(context).cancel,
+              style: TextStyle(color: _T.textSec),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -710,8 +877,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
               elevation: 0,
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(
-              'Delete',
+            child: Text(
+              AppLocalizations.of(context).delete,
               style: TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
@@ -728,7 +895,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            'Page $_currentPage of $_totalPages',
+            '${AppLocalizations.of(context).page} $_currentPage ${AppLocalizations.of(context).of_} $_totalPages',
             style: const TextStyle(color: _T.textMut, fontSize: 12),
           ),
           Row(
@@ -805,9 +972,9 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         children: [
           const Icon(Icons.error_outline_rounded, size: 48, color: _T.red),
           const SizedBox(height: 12),
-          const Text(
-            'Something went wrong',
-            style: TextStyle(
+          Text(
+            AppLocalizations.of(context).somethingWentWrong,
+            style: const TextStyle(
               color: _T.textPri,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -823,7 +990,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
             ),
             onPressed: () => setState(() => _futureRecords = _fetchRecords()),
             icon: const Icon(Icons.refresh_rounded, size: 16),
-            label: const Text('Retry'),
+            label: Text(AppLocalizations.of(context).retry),
           ),
         ],
       ),
@@ -873,7 +1040,7 @@ class _ViewScreenState extends State<ViewScreen> {
           });
         } else {
           setState(() {
-            error = 'No expense data found';
+            error = AppLocalizations.of(context).noDataFound;
             isLoading = false;
           });
         }

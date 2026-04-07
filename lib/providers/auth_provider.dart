@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthProvider extends ChangeNotifier {
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
@@ -19,6 +20,7 @@ class AuthProvider extends ChangeNotifier {
   String _tin = '';
   String _comId = '';
   String _caid = '';
+  String _userCount = '';
 
   bool get isLoggedIn => _isLoggedIn;
   String get username => _username;
@@ -33,6 +35,7 @@ class AuthProvider extends ChangeNotifier {
   String get tin => _tin;
   String get comId => _comId;
   String get caid => _caid;
+  String get userCount => _userCount;
 
   set fromDate(String value) {
     _fromDate = value;
@@ -56,6 +59,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<String> login(String username, String password) async {
     final url = Uri.parse('https://igb-fems.com/LIVE/mobile_php/login.php');
+
     try {
       final response = await http.post(
         url,
@@ -69,51 +73,52 @@ class AuthProvider extends ChangeNotifier {
         }),
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final String result = data['result'];
+      if (response.statusCode != 200) return 'Error';
 
-        if (result == 'Success') {
-          _isLoggedIn = true;
-          _username = username;
-          _tradeName = data['tradeName'] ?? '';
-          _fullName = data['fullName'] ?? '';
-          _branchCode = data['branchCode'] ?? '';
-          _userId = data['userId']?.toString() ?? '';
-          _fromDate = data['fromDate'] ?? '';
-          _toDate = data['toDate'] ?? '';
-          _branchType = data['branchType'] ?? '';
-          _clientNum = data['clientNum'] ?? '';
-          _tin = data['TIN'] ?? '';
-          _comId = data['comId']?.toString() ?? '';
-          _caid = data['CAID']?.toString() ?? '';
+      final data = jsonDecode(response.body);
+      final String result = data['result'];
 
-          // Store credentials keyed by CAID so each account has its own entry
-          if (_caid.isNotEmpty) {
-            await _secureStorage.write(
-              key: 'biometric_username_$_caid',
-              value: username,
-            );
-            await _secureStorage.write(
-              key: 'biometric_password_$_caid',
-              value: password,
-            );
-          }
+      if (result != 'Success') return result;
 
-          notifyListeners();
-        }
-        return result;
-      } else {
-        return 'Error';
+      _isLoggedIn = true;
+      _username = username;
+      _tradeName = data['tradeName'] ?? '';
+      _fullName = data['fullName'] ?? '';
+      _branchCode = data['branchCode'] ?? '';
+      _userId = data['userId']?.toString() ?? '';
+      _fromDate = data['fromDate'] ?? '';
+      _toDate = data['toDate'] ?? '';
+      _branchType = data['branchType'] ?? '';
+      _clientNum = data['clientNum'] ?? '';
+      _tin = data['TIN'] ?? '';
+      _comId = data['comId']?.toString() ?? '';
+      _caid = data['CAID']?.toString() ?? '';
+      _userCount = data['userCount'] ?? '';
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_id', _userId);
+      await prefs.setString('user_name', _fullName);
+      await prefs.setString('user_count', _userCount);
+
+      if (_caid.isNotEmpty) {
+        await _secureStorage.write(
+          key: 'biometric_username_$_caid',
+          value: username,
+        );
+        await _secureStorage.write(
+          key: 'biometric_password_$_caid',
+          value: password,
+        );
       }
+
+      notifyListeners();
+      return result;
     } catch (e) {
       debugPrint('Login error: $e');
       return 'Error';
     }
   }
 
-  /// Login with biometric using the selected CAID.
-  /// Retrieves the credentials stored for that specific CAID and logs in.
   Future<String> loginWithBiometric({required String caid}) async {
     try {
       final storedUsername = await _secureStorage.read(
@@ -124,7 +129,6 @@ class AuthProvider extends ChangeNotifier {
       );
 
       if (storedUsername == null || storedPassword == null) {
-        debugPrint('No stored credentials found for CAID: $caid');
         return 'NoBiometric';
       }
 
@@ -149,6 +153,8 @@ class AuthProvider extends ChangeNotifier {
     _tin = '';
     _comId = '';
     _caid = '';
+    _userCount = '';
+
     notifyListeners();
   }
 }

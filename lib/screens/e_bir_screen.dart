@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
+import '../l10n/app_localizations.dart';
 
 class EBirScreen extends StatefulWidget {
   const EBirScreen({super.key});
@@ -86,10 +87,10 @@ class _EBirScreenState extends State<EBirScreen> {
           isFrom
               ? (_dateFrom != null
                     ? DateFormat("MMM yyyy").format(_dateFrom!)
-                    : "Date From")
+                    : AppLocalizations.of(context).dateFrom)
               : (_dateTo != null
                     ? DateFormat("MMM yyyy").format(_dateTo!)
-                    : "Date To"),
+                    : AppLocalizations.of(context).dateTo),
           style: TextStyle(color: Colors.white, fontSize: compact ? 14 : 16),
         ),
       ),
@@ -112,7 +113,11 @@ class _EBirScreenState extends State<EBirScreen> {
         onPressed: () {
           if (_dateFrom == null || _dateTo == null) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Please select both dates")),
+              SnackBar(
+                content: Text(
+                  AppLocalizations.of(context).pleaseSelectBothDates,
+                ),
+              ),
             );
             return;
           }
@@ -120,7 +125,7 @@ class _EBirScreenState extends State<EBirScreen> {
         },
         style: _buttonStyle(compact: compact),
         child: Text(
-          "Generate Report",
+          AppLocalizations.of(context).generateReport,
           style: TextStyle(fontSize: compact ? 14 : 16),
         ),
       ),
@@ -175,13 +180,13 @@ class _EBirScreenState extends State<EBirScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('E-BIR'),
+        title: Text(AppLocalizations.of(context).eBir),
         actions: [
           if (_invoices.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.zoom_out_map),
               onPressed: _resetZoom,
-              tooltip: 'Reset Zoom',
+              tooltip: AppLocalizations.of(context).resetZoom,
             ),
         ],
       ),
@@ -233,9 +238,9 @@ class _EBirScreenState extends State<EBirScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _invoices.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
-                      'No data available',
+                      AppLocalizations.of(context).noDataFound,
                       style: TextStyle(color: Colors.white),
                     ),
                   )

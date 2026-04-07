@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
+import '../l10n/app_localizations.dart';
 
 class SalesReportScreen extends StatefulWidget {
   const SalesReportScreen({super.key});
@@ -94,10 +95,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           isFrom
               ? (_dateFrom != null
                     ? DateFormat("MMM yyyy").format(_dateFrom!)
-                    : "Date From")
+                    : AppLocalizations.of(context).dateFrom)
               : (_dateTo != null
                     ? DateFormat("MMM yyyy").format(_dateTo!)
-                    : "Date To"),
+                    : AppLocalizations.of(context).dateTo),
           style: TextStyle(color: Colors.white, fontSize: compact ? 14 : 16),
         ),
       ),
@@ -120,7 +121,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           ),
         ),
         child: Text(
-          "Generate Report",
+          AppLocalizations.of(context).generateReport,
           style: TextStyle(fontSize: compact ? 14 : 16),
         ),
       ),
@@ -130,9 +131,11 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   // ─── Generate button logic (extracted) ──────────────────────────────────────
   Future<void> _onGeneratePressed() async {
     if (_dateFrom == null || _dateTo == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Please select both dates")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).pleaseSelectBothDates),
+        ),
+      );
       return;
     }
     setState(() => _isLoading = true);
@@ -209,13 +212,13 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sales Report'),
+        title: Text(AppLocalizations.of(context).salesReport),
         actions: [
           if (_trialBalanceData.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.zoom_out_map),
               onPressed: _resetZoom,
-              tooltip: 'Reset Zoom',
+              tooltip: AppLocalizations.of(context).resetZoom,
             ),
         ],
       ),
@@ -267,9 +270,9 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _trialBalanceData.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
-                      'No data available',
+                      AppLocalizations.of(context).noDataFound,
                       style: TextStyle(color: Colors.white),
                     ),
                   )
@@ -293,10 +296,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                             dataRowMinHeight: 30,
                             dataRowMaxHeight: 30,
                             headingRowHeight: 30,
-                            columns: const [
+                            columns: [
                               DataColumn(
                                 label: Text(
-                                  'Date',
+                                  AppLocalizations.of(context).date,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -306,7 +309,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               ),
                               DataColumn(
                                 label: Text(
-                                  'TIN',
+                                  AppLocalizations.of(context).tin,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -316,7 +319,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Customer',
+                                  AppLocalizations.of(context).customer,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -326,7 +329,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Document',
+                                  AppLocalizations.of(context).documents,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -336,7 +339,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Account Title',
+                                  AppLocalizations.of(context).accountName,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -347,7 +350,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               DataColumn(
                                 numeric: true,
                                 label: Text(
-                                  'Amount',
+                                  AppLocalizations.of(context).amount,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -357,7 +360,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Currency',
+                                  AppLocalizations.of(context).currency,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -367,7 +370,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               ),
                               DataColumn(
                                 label: Text(
-                                  'Ex Rate',
+                                  AppLocalizations.of(context).exRate,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -389,7 +392,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               DataColumn(
                                 numeric: true,
                                 label: Text(
-                                  'Net VAT',
+                                  AppLocalizations.of(context).netVAT,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -400,7 +403,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               DataColumn(
                                 numeric: true,
                                 label: Text(
-                                  'input VAT',
+                                  AppLocalizations.of(context).inputVAT,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -411,7 +414,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               DataColumn(
                                 numeric: true,
                                 label: Text(
-                                  'VAT Exempt',
+                                  AppLocalizations.of(context).vatExempt,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -422,7 +425,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               DataColumn(
                                 numeric: true,
                                 label: Text(
-                                  'Zero Rated',
+                                  AppLocalizations.of(context).zeroRated,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -433,7 +436,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               DataColumn(
                                 numeric: true,
                                 label: Text(
-                                  'Non VAT',
+                                  AppLocalizations.of(context).nonVAT,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -622,9 +625,9 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                                       style: TextStyle(color: Colors.white),
                                     ),
                                   ),
-                                  const DataCell(
+                                  DataCell(
                                     Text(
-                                      'Total',
+                                      AppLocalizations.of(context).total,
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,

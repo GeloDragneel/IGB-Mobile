@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:math';
 import 'package:provider/provider.dart';
 import '../widgets/navigation_drawer.dart';
+import '../widgets/chat_bubble.dart';
 import '../providers/auth_provider.dart';
+import '../l10n/app_localizations.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -29,7 +30,6 @@ class _DashboardState extends State<Dashboard>
   static const _accent = Color(0xFF6C63FF);
   static const _accentGreen = Color(0xFF10B981);
   static const _accentOrange = Color(0xFFF59E0B);
-  static const _accentRed = Color(0xFFEF4444);
   static const _accentBlue = Color(0xFF3B82F6);
   static const _textPrimary = Color(0xFFF9FAFB);
   static const _textSecondary = Color(0xFF9CA3AF);
@@ -95,75 +95,123 @@ class _DashboardState extends State<Dashboard>
     return 0;
   }
 
+  String _translateMonth(String monthStr) {
+    // Parse month strings like "Mar 2026" and translate to Chinese
+    final parts = monthStr.split(' ');
+    if (parts.length != 2) return monthStr;
+
+    final monthAbbr = parts[0].toLowerCase();
+    final year = parts[1];
+
+    final monthMap = {
+      'jan': AppLocalizations.of(context).jan,
+      'feb': AppLocalizations.of(context).feb,
+      'mar': AppLocalizations.of(context).mar,
+      'apr': AppLocalizations.of(context).apr,
+      'may': AppLocalizations.of(context).may,
+      'jun': AppLocalizations.of(context).jun,
+      'jul': AppLocalizations.of(context).jul,
+      'aug': AppLocalizations.of(context).aug,
+      'sep': AppLocalizations.of(context).sep,
+      'oct': AppLocalizations.of(context).oct,
+      'nov': AppLocalizations.of(context).nov,
+      'dec': AppLocalizations.of(context).dec,
+    };
+
+    final translatedMonth = monthMap[monthAbbr] ?? parts[0];
+    // Use shorter format for Chinese to avoid layout issues
+    if (AppLocalizations.of(context).locale.languageCode == 'zh') {
+      return '$translatedMonth\n$year';
+    }
+    return '$translatedMonth $year';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bg,
       appBar: _buildAppBar(),
       drawer: AppDrawer(selectedIndex: 0),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator(color: _accent))
-          : FadeTransition(
-              opacity: _fadeAnim,
-              child: RefreshIndicator(
-                color: _accent,
-                backgroundColor: _card,
-                onRefresh: fetchData,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildGreeting(),
-                      const SizedBox(height: 20),
-                      _buildSummaryGrid(),
-                      const SizedBox(height: 28),
-                      _buildSectionHeader('Revenue Overview', 'Last 6 Months'),
-                      const SizedBox(height: 14),
-                      _buildLineChart(),
-                      const SizedBox(height: 28),
-                      _buildSectionHeader('Monthly Sales', 'Bar Chart'),
-                      const SizedBox(height: 14),
-                      _buildBarChart(
-                        dataKey: 'monthlySales',
-                        valueKey: 'sales',
-                        maxKey: 'maxSales',
-                        color: _accent,
-                        secondColor: const Color(0xFF9C8FFF),
+      body: Stack(
+        children: [
+          isLoading
+              ? const Center(child: CircularProgressIndicator(color: _accent))
+              : FadeTransition(
+                  opacity: _fadeAnim,
+                  child: RefreshIndicator(
+                    color: _accent,
+                    backgroundColor: _card,
+                    onRefresh: fetchData,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildGreeting(),
+                          const SizedBox(height: 20),
+                          _buildSummaryGrid(),
+                          const SizedBox(height: 28),
+                          _buildSectionHeader(
+                            AppLocalizations.of(context).revenueOverview,
+                            AppLocalizations.of(context).last6Months,
+                          ),
+                          const SizedBox(height: 14),
+                          _buildLineChart(),
+                          const SizedBox(height: 28),
+                          _buildSectionHeader(
+                            AppLocalizations.of(context).monthlySales,
+                            AppLocalizations.of(context).barChart,
+                          ),
+                          const SizedBox(height: 14),
+                          _buildBarChart(
+                            dataKey: 'monthlySales',
+                            valueKey: 'sales',
+                            maxKey: 'maxSales',
+                            color: _accent,
+                            secondColor: const Color(0xFF9C8FFF),
+                          ),
+                          const SizedBox(height: 28),
+                          _buildSectionHeader(
+                            AppLocalizations.of(context).costBreakdown,
+                            AppLocalizations.of(context).purchasesVsExpenses,
+                          ),
+                          const SizedBox(height: 14),
+                          _buildPieChart(),
+                          const SizedBox(height: 28),
+                          _buildSectionHeader(
+                            AppLocalizations.of(context).monthlyPurchases,
+                            AppLocalizations.of(context).barChart,
+                          ),
+                          const SizedBox(height: 14),
+                          _buildBarChart(
+                            dataKey: 'monthlyPurchases',
+                            valueKey: 'purchases',
+                            maxKey: 'maxPurchases',
+                            color: _accentBlue,
+                            secondColor: const Color(0xFF93C5FD),
+                          ),
+                          const SizedBox(height: 28),
+                          _buildSectionHeader(
+                            AppLocalizations.of(context).monthlyExpenses,
+                            AppLocalizations.of(context).barChart,
+                          ),
+                          const SizedBox(height: 14),
+                          _buildBarChart(
+                            dataKey: 'monthlyExpenses',
+                            valueKey: 'expenses',
+                            maxKey: 'maxExpenses',
+                            color: _accentOrange,
+                            secondColor: const Color(0xFFFCD34D),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 28),
-                      _buildSectionHeader(
-                        'Cost Breakdown',
-                        'Purchases vs Expenses',
-                      ),
-                      const SizedBox(height: 14),
-                      _buildPieChart(),
-                      const SizedBox(height: 28),
-                      _buildSectionHeader('Monthly Purchases', 'Bar Chart'),
-                      const SizedBox(height: 14),
-                      _buildBarChart(
-                        dataKey: 'monthlyPurchases',
-                        valueKey: 'purchases',
-                        maxKey: 'maxPurchases',
-                        color: _accentBlue,
-                        secondColor: const Color(0xFF93C5FD),
-                      ),
-                      const SizedBox(height: 28),
-                      _buildSectionHeader('Monthly Expenses', 'Bar Chart'),
-                      const SizedBox(height: 14),
-                      _buildBarChart(
-                        dataKey: 'monthlyExpenses',
-                        valueKey: 'expenses',
-                        maxKey: 'maxExpenses',
-                        color: _accentOrange,
-                        secondColor: const Color(0xFFFCD34D),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
+          const ChatBubble(),
+        ],
+      ),
     );
   }
 
@@ -188,9 +236,9 @@ class _DashboardState extends State<Dashboard>
             ),
           ),
           const SizedBox(width: 10),
-          const Text(
-            'Dashboard',
-            style: TextStyle(
+          Text(
+            AppLocalizations.of(context).dashboard,
+            style: const TextStyle(
               color: _textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -214,13 +262,13 @@ class _DashboardState extends State<Dashboard>
     String greeting;
     IconData greetIcon;
     if (hour < 12) {
-      greeting = 'Good Morning';
+      greeting = AppLocalizations.of(context).goodMorning;
       greetIcon = Icons.wb_sunny_rounded;
     } else if (hour < 17) {
-      greeting = 'Good Afternoon';
+      greeting = AppLocalizations.of(context).goodAfternoon;
       greetIcon = Icons.wb_cloudy_rounded;
     } else {
-      greeting = 'Good Evening';
+      greeting = AppLocalizations.of(context).goodEvening;
       greetIcon = Icons.nightlight_round;
     }
 
@@ -250,9 +298,9 @@ class _DashboardState extends State<Dashboard>
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const Text(
-                'Here\'s your business overview',
-                style: TextStyle(
+              Text(
+                AppLocalizations.of(context).businessOverview,
+                style: const TextStyle(
                   color: _textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -268,46 +316,46 @@ class _DashboardState extends State<Dashboard>
   Widget _buildSummaryGrid() {
     final cards = [
       _CardData(
-        'Total Sales',
+        AppLocalizations.of(context).totalSales,
         formatNumber(data['totalSales']),
         Icons.trending_up_rounded,
         _accentGreen,
-        '+Sales',
+        AppLocalizations.of(context).sales,
       ),
       _CardData(
-        'Purchases',
+        AppLocalizations.of(context).purchases,
         formatNumber(data['totalPurchases']),
         Icons.shopping_bag_rounded,
         _accentBlue,
-        'Bought',
+        AppLocalizations.of(context).bought,
       ),
       _CardData(
-        'Expenses',
+        AppLocalizations.of(context).expenses,
         formatNumber(data['totalExpenses']),
         Icons.receipt_long_rounded,
         _accentOrange,
-        'Spent',
+        AppLocalizations.of(context).spent,
       ),
       _CardData(
-        'Customers',
+        AppLocalizations.of(context).customers,
         formatNumber(data['NoOfCustomer']),
         Icons.people_alt_rounded,
         _accent,
-        'Active',
+        AppLocalizations.of(context).active,
       ),
       _CardData(
-        'Vendors',
+        AppLocalizations.of(context).vendors,
         formatNumber(data['noOfVendors']),
         Icons.storefront_rounded,
         const Color(0xFFEC4899),
-        'Partners',
+        AppLocalizations.of(context).partners,
       ),
       _CardData(
-        'Scanned',
+        AppLocalizations.of(context).scanned,
         formatNumber(data['totalScanned']),
         Icons.qr_code_scanner_rounded,
         const Color(0xFF14B8A6),
-        'QR Codes',
+        AppLocalizations.of(context).qrCodes,
       ),
     ];
 
@@ -449,7 +497,9 @@ class _DashboardState extends State<Dashboard>
       );
     }
 
-    final months = salesList.map((m) => m['month'].toString()).toList();
+    final months = salesList
+        .map((m) => _translateMonth(m['month'].toString()))
+        .toList();
 
     return _buildChartCard(
       child: SizedBox(
@@ -475,9 +525,15 @@ class _DashboardState extends State<Dashboard>
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
                         months[idx],
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: _textSecondary,
-                          fontSize: 9,
+                          fontSize:
+                              AppLocalizations.of(
+                                    context,
+                                  ).locale.languageCode ==
+                                  'zh'
+                              ? 7
+                              : 9,
                         ),
                       ),
                     );
@@ -560,9 +616,9 @@ class _DashboardState extends State<Dashboard>
       ),
       legend: Row(
         children: [
-          _buildLegendDot(_accentGreen, 'Sales'),
+          _buildLegendDot(_accentGreen, AppLocalizations.of(context).sales),
           const SizedBox(width: 16),
-          _buildLegendDot(_accentBlue, 'Purchases'),
+          _buildLegendDot(_accentBlue, AppLocalizations.of(context).purchases),
         ],
       ),
     );
@@ -577,7 +633,9 @@ class _DashboardState extends State<Dashboard>
   }) {
     final list = data[dataKey] as List? ?? [];
     final maxY = _toDouble(data[maxKey]);
-    final months = list.map((m) => m['month'].toString()).toList();
+    final months = list
+        .map((m) => _translateMonth(m['month'].toString()))
+        .toList();
 
     return _buildChartCard(
       child: SizedBox(
@@ -613,9 +671,15 @@ class _DashboardState extends State<Dashboard>
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
                         months[idx],
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: _textSecondary,
-                          fontSize: 9,
+                          fontSize:
+                              AppLocalizations.of(
+                                    context,
+                                  ).locale.languageCode ==
+                                  'zh'
+                              ? 7
+                              : 9,
                         ),
                       ),
                     );
@@ -741,14 +805,14 @@ class _DashboardState extends State<Dashboard>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _buildPieLegendItem(
-                  'Purchases',
+                  AppLocalizations.of(context).purchases,
                   '₱${formatNumber(totalPurchases)}',
                   _accentBlue,
                   total > 0 ? totalPurchases / total : 0,
                 ),
                 const SizedBox(height: 16),
                 _buildPieLegendItem(
-                  'Expenses',
+                  AppLocalizations.of(context).expenses,
                   '₱${formatNumber(totalExpenses)}',
                   _accentOrange,
                   total > 0 ? totalExpenses / total : 0,

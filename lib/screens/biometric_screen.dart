@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
+import '../l10n/app_localizations.dart';
 
 class BiometricScreen extends StatefulWidget {
   const BiometricScreen({super.key});
@@ -127,11 +128,15 @@ class _BiometricScreenState extends State<BiometricScreen>
 
   Future<void> _registerFingerprint() async {
     if (!_isBiometricAvailable) {
-      _showSnackBar('Biometric authentication is not available', false);
+      _showSnackBar(
+        AppLocalizations.of(context).biometricAuthentificationNotAvail,
+        false,
+      );
       return;
     }
 
     setState(() => _isAuthenticating = true);
+    final loc = AppLocalizations.of(context);
 
     try {
       final authenticated = await _localAuth.authenticate(
@@ -147,10 +152,9 @@ class _BiometricScreenState extends State<BiometricScreen>
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
       if (!authProvider.isLoggedIn) {
-        _showSnackBar('Please login first', false);
+        _showSnackBar(AppLocalizations.of(context).pleaseLoginFirst, false);
         return;
       }
-
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fingerprintData =
           'FP_${timestamp}_CAID_${authProvider.comId}_USER_${authProvider.userId}';
@@ -175,20 +179,20 @@ class _BiometricScreenState extends State<BiometricScreen>
         if (data['result'] == 'Success') {
           await _saveKeyLocally(key);
           setState(() => _isFingerprintRegistered = true);
-          _showSnackBar('Fingerprint registered successfully!', true);
+          _showSnackBar(loc.fingerprintRegisteredSuccess, true);
         } else if (data['result'] == 'Error' &&
             data['message'] == 'Biometric already registered') {
           await _saveKeyLocally(key);
           setState(() => _isFingerprintRegistered = true);
-          _showSnackBar('Biometric already registered.', false);
+          _showSnackBar(loc.enableBiometric, false);
         } else {
-          _showSnackBar('Registration failed: ${data['message']}', false);
+          _showSnackBar('${loc.registrationFailed}: ${data['message']}', false);
         }
       } else {
-        _showSnackBar('Server error. Please try again.', false);
+        _showSnackBar(loc.serverError, false);
       }
     } catch (e) {
-      if (mounted) _showSnackBar('Failed to register: $e', false);
+      if (mounted) _showSnackBar('${loc.registrationFailed}: $e', false);
     } finally {
       if (mounted) setState(() => _isAuthenticating = false);
     }
@@ -211,7 +215,7 @@ class _BiometricScreenState extends State<BiometricScreen>
     return Scaffold(
       backgroundColor: const Color(0xFF0e1726),
       appBar: AppBar(
-        title: const Text('Enable Biometric'),
+        title: Text(AppLocalizations.of(context).enableBiometric),
         backgroundColor: const Color(0xFF0e1726),
         elevation: 0,
       ),
@@ -222,8 +226,8 @@ class _BiometricScreenState extends State<BiometricScreen>
           children: [
             Text(
               _isFingerprintRegistered
-                  ? 'Fingerprint Registered'
-                  : 'Not Registered',
+                  ? AppLocalizations.of(context).fingerprintRegistered
+                  : AppLocalizations.of(context).notRegistered,
               style: TextStyle(
                 color: _isFingerprintRegistered
                     ? const Color(0xFF8f72ec)
@@ -288,8 +292,8 @@ class _BiometricScreenState extends State<BiometricScreen>
             const SizedBox(height: 40),
             Text(
               _isFingerprintRegistered
-                  ? 'Your fingerprint is active'
-                  : 'Tap to register your fingerprint',
+                  ? AppLocalizations.of(context).yourFingerPrintIsActive
+                  : AppLocalizations.of(context).tapToRegisterYourFingerPrint,
               style: TextStyle(color: Colors.grey[500], fontSize: 13),
             ),
             const SizedBox(height: 60),
@@ -309,7 +313,9 @@ class _BiometricScreenState extends State<BiometricScreen>
                     ),
                     onPressed: _isAuthenticating ? null : _registerFingerprint,
                     icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Register Fingerprint'),
+                    label: Text(
+                      AppLocalizations.of(context).registerFingerprint,
+                    ),
                   ),
                 ),
               ),

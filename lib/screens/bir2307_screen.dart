@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
+import '../l10n/app_localizations.dart';
 
 class Bir2307Screen extends StatefulWidget {
   const Bir2307Screen({super.key});
@@ -22,12 +23,19 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
   List<Map<String, dynamic>> _header = [];
   Map<String, dynamic> _footer = {};
 
-  final List<Map<String, String>> _reportTypes = [
-    {'value': 'BIR2307_S_VT', 'display': 'Summary of Sales BIR2307 (VT/PT)'},
-    {'value': 'BIR2307_S_IT', 'display': 'Summary of Sales BIR2307 (IT)'},
+  // ✅ FIX: moved inside build to access context
+  List<Map<String, String>> _reportTypes(BuildContext context) => [
+    {
+      'value': 'BIR2307_S_VT',
+      'display': AppLocalizations.of(context).summaryOfSalesVtPt,
+    },
+    {
+      'value': 'BIR2307_S_IT',
+      'display': AppLocalizations.of(context).summaryOfSalesIT,
+    },
     {
       'value': 'BIR2307_PE_IT',
-      'display': 'Summary of Purchases and Expenses (IT)',
+      'display': AppLocalizations.of(context).summaryOfPEIT,
     },
   ];
 
@@ -78,8 +86,8 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
     }
   }
 
-  // ─── Dropdown widget ─────────────────────────────────────────────────────────
-  Widget _reportTypeDropdown({bool compact = false}) {
+  // ─── Dropdown widget ──────────────────────────────────────────────────────
+  Widget _reportTypeDropdown(BuildContext context, {bool compact = false}) {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(horizontal: 12, vertical: compact ? 0 : 4),
@@ -92,12 +100,12 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
         dropdownColor: const Color(0xFF1e2235),
         style: TextStyle(color: Colors.white, fontSize: compact ? 14 : 16),
         hint: Text(
-          'Select Report Type',
+          AppLocalizations.of(context).selectReportType,
           style: TextStyle(color: Colors.white70, fontSize: compact ? 14 : 16),
         ),
         isExpanded: true,
         underline: const SizedBox(),
-        items: _reportTypes.map((type) {
+        items: _reportTypes(context).map((type) {
           return DropdownMenuItem<String>(
             value: type['value'],
             child: Text(
@@ -114,7 +122,7 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
     );
   }
 
-  // ─── Date picker tile ────────────────────────────────────────────────────────
+  // ─── Date picker tile ─────────────────────────────────────────────────────
   Widget _datePickerTile({required bool isFrom, bool compact = false}) {
     return GestureDetector(
       onTap: () => _pickDate(isFrom: isFrom),
@@ -132,17 +140,17 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
           isFrom
               ? (_dateFrom != null
                     ? DateFormat("MMM yyyy").format(_dateFrom!)
-                    : "Date From")
+                    : AppLocalizations.of(context).dateFrom)
               : (_dateTo != null
                     ? DateFormat("MMM yyyy").format(_dateTo!)
-                    : "Date To"),
+                    : AppLocalizations.of(context).dateTo),
           style: TextStyle(color: Colors.white, fontSize: compact ? 14 : 16),
         ),
       ),
     );
   }
 
-  // ─── Generate button ─────────────────────────────────────────────────────────
+  // ─── Generate button ──────────────────────────────────────────────────────
   Widget _generateButton({bool compact = false}) {
     return SizedBox(
       width: double.infinity,
@@ -158,19 +166,19 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
           ),
         ),
         child: Text(
-          "Generate Report",
+          AppLocalizations.of(context).generateReport,
           style: TextStyle(fontSize: compact ? 14 : 16),
         ),
       ),
     );
   }
 
-  // ─── Generate logic ──────────────────────────────────────────────────────────
+  // ─── Generate logic ───────────────────────────────────────────────────────
   Future<void> _generateReport() async {
     if (_dateFrom == null || _dateTo == null || _selectedReportType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please select report type and both dates"),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).pleaseSelectBothDates),
         ),
       );
       return;
@@ -226,14 +234,14 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
     }
   }
 
-  // ─── Report table ────────────────────────────────────────────────────────────
+  // ─── Report table ─────────────────────────────────────────────────────────
   Widget _buildReportTable() {
     if (_reportData.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
           padding: EdgeInsets.all(20.0),
           child: Text(
-            'No data available',
+            AppLocalizations.of(context).noDataFound,
             style: TextStyle(color: Colors.white70),
           ),
         ),
@@ -274,9 +282,9 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
                 ),
               );
             }),
-            const DataColumn(
+            DataColumn(
               label: Text(
-                'Total',
+                AppLocalizations.of(context).total,
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -356,9 +364,9 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
                 const Color(0xFF8f72ec).withOpacity(0.3),
               ),
               cells: [
-                const DataCell(
+                DataCell(
                   Text(
-                    'TOTAL',
+                    AppLocalizations.of(context).total,
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -429,7 +437,6 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
 
   @override
   Widget build(BuildContext context) {
-    // ── Detect orientation ────────────────────────────────────────────────────
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
 
@@ -446,16 +453,14 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ── Filter row ──────────────────────────────────────────────
               if (isLandscape)
-                // LANDSCAPE: dropdown(flex 3) + date from + date to + button
-                // all in one row, dropdown gets more space for its long text
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
                       flex: 3,
-                      child: _reportTypeDropdown(compact: true),
+                      // ✅ FIX: pass context to dropdown
+                      child: _reportTypeDropdown(context, compact: true),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -472,13 +477,13 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
                   ],
                 )
               else
-                // PORTRAIT: original stacked layout
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
                       margin: const EdgeInsets.only(bottom: 16),
-                      child: _reportTypeDropdown(),
+                      // ✅ FIX: pass context to dropdown
+                      child: _reportTypeDropdown(context),
                     ),
                     Container(
                       margin: const EdgeInsets.only(bottom: 16),
@@ -492,7 +497,6 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
                   ],
                 ),
 
-              // ── Table / loading ─────────────────────────────────────────
               if (_isLoading)
                 const Padding(
                   padding: EdgeInsets.all(40.0),

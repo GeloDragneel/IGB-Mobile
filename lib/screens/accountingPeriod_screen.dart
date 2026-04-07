@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart'; // ✅ Required for Provider
 import '../providers/auth_provider.dart'; // ✅ Make sure the path is correct
 import '../widgets/navigation_drawer.dart';
+import '../l10n/app_localizations.dart';
 
 class AccountingPeriodScreen extends StatefulWidget {
   const AccountingPeriodScreen({super.key});
@@ -66,9 +67,11 @@ class _AccountingPeriodScreenState extends State<AccountingPeriodScreen> {
 
   void _createSession() {
     if (_dateFrom == null || _dateTo == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Please select both dates")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).pleaseSelectBothDates),
+        ),
+      );
       return;
     }
 
@@ -87,7 +90,11 @@ class _AccountingPeriodScreenState extends State<AccountingPeriodScreen> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Session created: $_currentSession")),
+      SnackBar(
+        content: Text(
+          "${AppLocalizations.of(context).sessionCreated}: $_currentSession",
+        ),
+      ),
     );
   }
 
@@ -96,7 +103,7 @@ class _AccountingPeriodScreenState extends State<AccountingPeriodScreen> {
     final auth = Provider.of<AuthProvider>(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Accounting Period')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context).accountPeriod)),
       drawer: AppDrawer(selectedIndex: 2),
       backgroundColor: const Color(0xFF121826),
       body: Center(
@@ -114,8 +121,8 @@ class _AccountingPeriodScreenState extends State<AccountingPeriodScreen> {
                       color: const Color(0xFF8f72ec),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      "Accounting Period:",
+                    Text(
+                      AppLocalizations.of(context).accountingPeriod,
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 14,
@@ -152,7 +159,7 @@ class _AccountingPeriodScreenState extends State<AccountingPeriodScreen> {
                   child: Text(
                     _dateFrom != null
                         ? DateFormat("MMM yyyy").format(_dateFrom!)
-                        : "Date From",
+                        : AppLocalizations.of(context).dateFrom,
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                 ),
@@ -174,7 +181,7 @@ class _AccountingPeriodScreenState extends State<AccountingPeriodScreen> {
                   child: Text(
                     _dateTo != null
                         ? DateFormat("MMM yyyy").format(_dateTo!)
-                        : "Date To",
+                        : AppLocalizations.of(context).dateTo,
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                 ),
@@ -192,7 +199,7 @@ class _AccountingPeriodScreenState extends State<AccountingPeriodScreen> {
                       horizontal: 24,
                     ),
                   ),
-                  child: const Text("Create Session"),
+                  child: Text(AppLocalizations.of(context).createSesion),
                 ),
               ),
             ],
