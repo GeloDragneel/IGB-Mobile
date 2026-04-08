@@ -13,9 +13,11 @@ dependencies:
   image_picker: ^1.2.0 # Use the latest version from pub.dev
   image_cropper: ^11.0.0 # For cropping images
   file_picker: ^8.0.0+1 # For file attachments
-  google_mlkit_document_scanner: ^0.4.0 # For automatic document scanning
+  #google_mlkit_document_scanner: ^0.4.0 # For automatic document scanning
+  google_mlkit_document_scanner: ^0.3.0
   cupertino_icons: ^1.0.8
-  google_mlkit_text_recognition: ^0.15.0 # The latest version
+  #google_mlkit_text_recognition: ^0.15.0 # The latest version
+  google_mlkit_text_recognition: ^0.13.0
   fl_chart: ^0.66.2  # For charts and graphs
   intl: ^0.20.2
   pdf: ^3.10.0
