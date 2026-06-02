@@ -5,6 +5,7 @@ import 'dart:convert';
 import '../models/chat.dart';
 import '../models/message.dart';
 import 'package:file_picker/file_picker.dart';
+import '../constants/api_constants.dart';
 
 class ChatProvider with ChangeNotifier {
   List<Chat> _chats = [];
@@ -62,7 +63,7 @@ class ChatProvider with ChangeNotifier {
     try {
       if (_currentUserId != null && _currentUserCount != null) {
         final url = Uri.parse(
-          'https://igb-fems.com/LIVE/mobile_php/chat_get_conversations.php',
+          '${ApiConstants.baseUrl}/chat_get_conversations.php',
         );
         final response = await http.post(
           url,
@@ -148,7 +149,7 @@ class ChatProvider with ChangeNotifier {
           final otherUserType = parts[1];
 
           final url = Uri.parse(
-            'https://igb-fems.com/LIVE/mobile_php/chat_get_messages.php',
+            '${ApiConstants.baseUrl}/chat_get_messages.php',
           );
           final response = await http.post(
             url,
@@ -238,7 +239,7 @@ class ChatProvider with ChangeNotifier {
           }
 
           final url = Uri.parse(
-            'https://igb-fems.com/LIVE/mobile_php/chat_send_message_new.php',
+            '${ApiConstants.baseUrl}/chat_send_message_new.php',
           );
           final response = await http.post(
             url,

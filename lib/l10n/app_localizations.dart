@@ -383,6 +383,23 @@ class AppLocalizations {
   String get expensesJournal => translate('expensesJournal');
   String get accountsPayable => translate('accountsPayable');
   String get accountsReceivable => translate('accountsReceivable');
+  String get calendar => translate('calendar');
+  String get overtime => translate('overtime');
+  String get leaveRequest => translate('leaveRequest');
+  String get overtimeDate => translate('overtimeDate');
+  String get overtimeStartTime => translate('overtimeStartTime');
+  String get overtimeEndTime => translate('overtimeEndTime');
+  String get overtimeRemarks => translate('overtimeRemarks');
+  String get leaveType => translate('leaveType');
+  String get leaveDuration => translate('leaveDuration');
+  String get startDate => translate('startDate');
+  String get endDate => translate('endDate');
+  String get reason => translate('reason');
+  String get collection => translate('collection');
+  String get deposit => translate('deposit');
+  String get cash => translate('cash');
+  String get cheque => translate('cheque');
+  String get payment => translate('payment');
 }
 
 class _AppLocalizationsDelegate

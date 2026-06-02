@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import '../models/group.dart';
 import '../models/message.dart';
+import '../constants/api_constants.dart';
 
 class GroupProvider with ChangeNotifier {
   List<Group> _groups = [];
@@ -32,7 +33,7 @@ class GroupProvider with ChangeNotifier {
 
     try {
       final response = await http.post(
-        Uri.parse('https://igb-fems.com/LIVE/mobile_php/group_get_list.php'),
+        Uri.parse('${ApiConstants.baseUrl}/group_get_list.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'userId': _currentUserId,
@@ -83,9 +84,7 @@ class GroupProvider with ChangeNotifier {
 
     try {
       final response = await http.post(
-        Uri.parse(
-          'https://igb-fems.com/LIVE/mobile_php/group_get_messages.php',
-        ),
+        Uri.parse('${ApiConstants.baseUrl}/group_get_messages.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'groupId': groupId,
@@ -145,9 +144,7 @@ class GroupProvider with ChangeNotifier {
       }
 
       final response = await http.post(
-        Uri.parse(
-          'https://igb-fems.com/LIVE/mobile_php/group_send_message.php',
-        ),
+        Uri.parse('${ApiConstants.baseUrl}/group_send_message.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'groupId': groupId,
@@ -199,7 +196,7 @@ class GroupProvider with ChangeNotifier {
   ) async {
     try {
       final response = await http.post(
-        Uri.parse('https://igb-fems.com/LIVE/mobile_php/group_create.php'),
+        Uri.parse('${ApiConstants.baseUrl}/group_create.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'groupName': groupName,
@@ -229,7 +226,7 @@ class GroupProvider with ChangeNotifier {
   Future<List<Map<String, dynamic>>> getMembers(String groupId) async {
     try {
       final response = await http.post(
-        Uri.parse('https://igb-fems.com/LIVE/mobile_php/group_get_members.php'),
+        Uri.parse('${ApiConstants.baseUrl}/group_get_members.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'groupId': groupId}),
       );
@@ -248,7 +245,7 @@ class GroupProvider with ChangeNotifier {
   Future<bool> leaveGroup(String groupId) async {
     try {
       final response = await http.post(
-        Uri.parse('https://igb-fems.com/LIVE/mobile_php/group_leave.php'),
+        Uri.parse('${ApiConstants.baseUrl}/group_leave.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'groupId': groupId,
@@ -273,9 +270,7 @@ class GroupProvider with ChangeNotifier {
   Future<List<Map<String, dynamic>>> getAvailableUsers(String groupId) async {
     try {
       final response = await http.post(
-        Uri.parse(
-          'https://igb-fems.com/LIVE/mobile_php/group_get_available_users.php',
-        ),
+        Uri.parse('${ApiConstants.baseUrl}/group_get_available_users.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'groupId': groupId}),
       );
@@ -305,7 +300,7 @@ class GroupProvider with ChangeNotifier {
       };
 
       final response = await http.post(
-        Uri.parse('https://igb-fems.com/LIVE/mobile_php/group_add_members.php'),
+        Uri.parse('${ApiConstants.baseUrl}/group_add_members.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
       );

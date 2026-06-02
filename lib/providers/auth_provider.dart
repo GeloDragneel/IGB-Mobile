@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import '../constants/api_constants.dart';
 class AuthProvider extends ChangeNotifier {
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
@@ -13,6 +13,7 @@ class AuthProvider extends ChangeNotifier {
   String _fullName = '';
   String _branchCode = '';
   String _userId = '';
+  String _employeeId = '';
   String _fromDate = '';
   String _toDate = '';
   String _branchType = '';
@@ -21,6 +22,10 @@ class AuthProvider extends ChangeNotifier {
   String _comId = '';
   String _caid = '';
   String _userCount = '';
+  String _workId = '';
+  String _userTypeId = '';
+  String _designationId = '';
+  String _position = '';
 
   bool get isLoggedIn => _isLoggedIn;
   String get username => _username;
@@ -28,6 +33,7 @@ class AuthProvider extends ChangeNotifier {
   String get fullName => _fullName;
   String get branchCode => _branchCode;
   String get userId => _userId;
+  String get employeeId => _employeeId;
   String get fromDate => _fromDate;
   String get toDate => _toDate;
   String get branchType => _branchType;
@@ -36,6 +42,10 @@ class AuthProvider extends ChangeNotifier {
   String get comId => _comId;
   String get caid => _caid;
   String get userCount => _userCount;
+  String get workId => _workId;
+  String get userTypeId => _userTypeId;
+  String get designationId => _designationId;
+  String get position => _position;
 
   set fromDate(String value) {
     _fromDate = value;
@@ -58,7 +68,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<String> login(String username, String password) async {
-    final url = Uri.parse('https://igb-fems.com/LIVE/mobile_php/login.php');
+    final url = Uri.parse('${ApiConstants.baseUrl}/login.php');
 
     try {
       final response = await http.post(
@@ -86,6 +96,7 @@ class AuthProvider extends ChangeNotifier {
       _fullName = data['fullName'] ?? '';
       _branchCode = data['branchCode'] ?? '';
       _userId = data['userId']?.toString() ?? '';
+      _employeeId = data['employeeId']?.toString() ?? '';
       _fromDate = data['fromDate'] ?? '';
       _toDate = data['toDate'] ?? '';
       _branchType = data['branchType'] ?? '';
@@ -94,6 +105,10 @@ class AuthProvider extends ChangeNotifier {
       _comId = data['comId']?.toString() ?? '';
       _caid = data['CAID']?.toString() ?? '';
       _userCount = data['userCount'] ?? '';
+      _workId = data['workId'] ?? '';
+      _userTypeId = data['userTypeId'] ?? '';
+      _designationId = data['designationId'] ?? '';
+      _position = data['position'] ?? '';
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_id', _userId);
@@ -146,6 +161,7 @@ class AuthProvider extends ChangeNotifier {
     _fullName = '';
     _branchCode = '';
     _userId = '';
+    _employeeId = '';
     _fromDate = '';
     _toDate = '';
     _branchType = '';
@@ -154,6 +170,10 @@ class AuthProvider extends ChangeNotifier {
     _comId = '';
     _caid = '';
     _userCount = '';
+    _workId = '';
+    _userTypeId = '';
+    _designationId = '';
+    _position = '';
 
     notifyListeners();
   }

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../widgets/navigation_drawer.dart';
 import '../l10n/app_localizations.dart';
+import '../constants/api_constants.dart';
 
 const Map<String, String> headerToFooterKey = {
   'Amount': 'F_Total',
@@ -168,7 +169,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           try {
             String transactionType = _selectedJournal!.replaceAll(' ', '');
             String url =
-                'https://igb-fems.com/LIVE/mobile_php/transaction.php?userId=10&transactionType=$transactionType&year=$_selectedYear';
+                '${ApiConstants.baseUrl}/transaction.php?userId=10&transactionType=$transactionType&year=$_selectedYear';
             final response = await http.get(Uri.parse(url));
             if (response.statusCode == 200) {
               final json = jsonDecode(response.body);

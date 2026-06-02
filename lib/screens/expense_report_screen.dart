@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
 import '../l10n/app_localizations.dart';
+import '../constants/api_constants.dart';
 
 class ExpenseReportScreen extends StatefulWidget {
   const ExpenseReportScreen({super.key});
@@ -136,7 +137,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
           final from = DateFormat('yyyy-MM').format(_dateFrom!);
           final to = DateFormat('yyyy-MM').format(_dateTo!);
           final url =
-              'https://igb-fems.com/LIVE/mobile_php/expense_report.php?userId=${auth.userId}&from=$from&to=$to&branchType=${auth.branchType}&clientNum=${auth.clientNum}';
+              '${ApiConstants.baseUrl}/expense_report.php?userId=${auth.userId}&from=$from&to=$to&branchType=${auth.branchType}&clientNum=${auth.clientNum}';
           try {
             final response = await http.get(Uri.parse(url));
             if (response.statusCode == 200) {

@@ -7,6 +7,7 @@ import '../widgets/navigation_drawer.dart';
 import '../widgets/chat_bubble.dart';
 import '../providers/auth_provider.dart';
 import '../l10n/app_localizations.dart';
+import '../constants/api_constants.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -57,7 +58,7 @@ class _DashboardState extends State<Dashboard>
     try {
       final response = await http.get(
         Uri.parse(
-          'https://igb-fems.com/LIVE/mobile_php/dashboard.php'
+          '${ApiConstants.baseUrl}/dashboard.php'
           '?userId=${auth.userId}&from=${auth.fromDate}&to=${auth.toDate}',
         ),
       );

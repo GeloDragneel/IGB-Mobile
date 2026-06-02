@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+// import 'package:igb_scan_suite/screens/deposit.dart';
 import 'package:provider/provider.dart';
+import 'package:upgrader/upgrader.dart';
 
 import 'providers/auth_provider.dart';
 import 'providers/scan_provider.dart';
 import 'providers/chat_provider.dart';
 import 'providers/locale_provider.dart';
+import 'providers/group_provider.dart';
 
 import 'l10n/app_localizations.dart';
 
@@ -42,9 +45,12 @@ import 'screens/account_payable_screen.dart';
 import 'screens/account_receivable_screen.dart';
 import 'screens/biometric_screen.dart';
 import 'screens/chat_list_screen.dart';
-import 'providers/group_provider.dart'; // ← add this
+import 'screens/calendar.dart';
+import 'screens/collection.dart';
+import 'screens/deposit.dart';
+import 'screens/payment.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
   FlutterError.onError = (FlutterErrorDetails details) {
@@ -72,82 +78,94 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<LocaleProvider>(
       builder: (context, localeProvider, child) {
-        return MaterialApp(
-          title: 'IGB Scan Suite',
-          theme: ThemeData(
-            primaryColor: const Color(0xFF0e1726),
-            scaffoldBackgroundColor: const Color(0xFF060818),
-            appBarTheme: const AppBarTheme(
-              backgroundColor: Color(0xFF0e1726),
-              foregroundColor: Colors.white,
+        return UpgradeAlert(
+          barrierDismissible: false,
+          showIgnore: false,
+          showLater: false,
+          child: MaterialApp(
+            title: 'IGB Scan Suite',
+            theme: ThemeData(
+              primaryColor: const Color(0xFF0e1726),
+              scaffoldBackgroundColor: const Color(0xFF060818),
+              appBarTheme: const AppBarTheme(
+                backgroundColor: Color(0xFF0e1726),
+                foregroundColor: Colors.white,
+              ),
+              drawerTheme: const DrawerThemeData(
+                backgroundColor: Color(0xFF0e1726),
+              ),
+              textTheme: const TextTheme(
+                bodyLarge: TextStyle(color: Colors.white),
+                bodyMedium: TextStyle(color: Colors.white),
+              ),
+              dataTableTheme: DataTableThemeData(
+                headingRowColor: WidgetStateProperty.all(
+                  const Color(0xFF0e1726),
+                ),
+                dataRowColor: WidgetStateProperty.all(const Color(0xFF101222)),
+              ),
             ),
-            drawerTheme: const DrawerThemeData(
-              backgroundColor: Color(0xFF0e1726),
-            ),
-            textTheme: const TextTheme(
-              bodyLarge: TextStyle(color: Colors.white),
-              bodyMedium: TextStyle(color: Colors.white),
-            ),
-            dataTableTheme: DataTableThemeData(
-              headingRowColor: WidgetStateProperty.all(const Color(0xFF0e1726)),
-              dataRowColor: WidgetStateProperty.all(const Color(0xFF101222)),
-            ),
+            locale: localeProvider.locale,
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en', 'US'), Locale('zh', 'CN')],
+            initialRoute: '/',
+            routes: {
+              '/': (context) => Consumer<AuthProvider>(
+                builder: (context, auth, _) {
+                  return auth.isLoggedIn ? Dashboard() : LoginScreen();
+                },
+              ),
+              '/dashboard': (context) => Dashboard(),
+              '/calendar': (context) => CalendarScreen(),
+              '/payment': (context) => PaymentScreen(),
+              '/collection': (context) => CollectionScreen(),
+              '/deposit': (context) => DepositScreen(),
+              '/sales': (context) => SalesScreen(),
+              '/purchases': (context) => PurchasesScreen(),
+              '/expenses': (context) => ExpensesScreen(),
+              '/profile': (context) => ProfileScreen(),
+              '/accountingPeriod': (context) => AccountingPeriodScreen(),
+              '/reports': (context) => ReportsScreen(),
+              '/report_detail': (context) => ReportDetailScreen(
+                reportName:
+                    (ModalRoute.of(context)?.settings.arguments as String?) ??
+                    '',
+              ),
+              '/trial_balance': (context) => TrialBalanceScreen(),
+              '/summary': (context) => SummaryScreen(),
+              '/general_ledger': (context) => GeneralLedgerScreen(),
+              '/customer_ledger': (context) => CustomerLedgerScreen(),
+              '/e_bir': (context) => EBirScreen(),
+              '/consolidated_report_detailed': (context) =>
+                  ConsolidatedReportDetailedScreen(),
+              '/purchase_report': (context) => PurchaseReportScreen(),
+              '/sales_report': (context) => SalesReportScreen(),
+              '/expense_report': (context) => ExpenseReportScreen(),
+              '/import_report': (context) => ImportReportScreen(),
+              '/e_sub_report': (context) => ESubReportScreen(),
+              '/bir2307': (context) => Bir2307Screen(),
+              '/income_statement': (context) => IncomeStatementScreen(),
+              '/annual_summary': (context) => AnnualSummaryScreen(),
+              '/annual_summary_comparative_income_statement': (context) =>
+                  AnnualSummaryComparativeIncomeStatementScreen(),
+              '/sales_journal': (context) => SalesJournalScreen(),
+              '/purchase_receipts_journal': (context) =>
+                  PurchaseReceiptsJournalScreen(),
+              '/cash_disbursement_journal': (context) =>
+                  CashDisbursementJournalScreen(),
+              '/transactions': (context) => TransactionsScreen(),
+              '/account_payable': (context) => AccountPayableScreen(),
+              '/account_receivable': (context) => AccountReceivableScreen(),
+              '/biometric': (context) => BiometricScreen(),
+              '/chat': (context) => ChatListScreen(),
+            },
+            debugShowCheckedModeBanner: false,
           ),
-          locale: localeProvider.locale,
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: const [Locale('en', 'US'), Locale('zh', 'CN')],
-          initialRoute: '/',
-          routes: {
-            '/': (context) => Consumer<AuthProvider>(
-              builder: (context, auth, _) {
-                return auth.isLoggedIn ? Dashboard() : LoginScreen();
-              },
-            ),
-            '/dashboard': (context) => Dashboard(),
-            '/sales': (context) => SalesScreen(),
-            '/purchases': (context) => PurchasesScreen(),
-            '/expenses': (context) => ExpensesScreen(),
-            '/profile': (context) => ProfileScreen(),
-            '/accountingPeriod': (context) => AccountingPeriodScreen(),
-            '/reports': (context) => ReportsScreen(),
-            '/report_detail': (context) => ReportDetailScreen(
-              reportName:
-                  (ModalRoute.of(context)?.settings.arguments as String?) ?? '',
-            ),
-            '/trial_balance': (context) => TrialBalanceScreen(),
-            '/summary': (context) => SummaryScreen(),
-            '/general_ledger': (context) => GeneralLedgerScreen(),
-            '/customer_ledger': (context) => CustomerLedgerScreen(),
-            '/e_bir': (context) => EBirScreen(),
-            '/consolidated_report_detailed': (context) =>
-                ConsolidatedReportDetailedScreen(),
-            '/purchase_report': (context) => PurchaseReportScreen(),
-            '/sales_report': (context) => SalesReportScreen(),
-            '/expense_report': (context) => ExpenseReportScreen(),
-            '/import_report': (context) => ImportReportScreen(),
-            '/e_sub_report': (context) => ESubReportScreen(),
-            '/bir2307': (context) => Bir2307Screen(),
-            '/income_statement': (context) => IncomeStatementScreen(),
-            '/annual_summary': (context) => AnnualSummaryScreen(),
-            '/annual_summary_comparative_income_statement': (context) =>
-                AnnualSummaryComparativeIncomeStatementScreen(),
-            '/sales_journal': (context) => SalesJournalScreen(),
-            '/purchase_receipts_journal': (context) =>
-                PurchaseReceiptsJournalScreen(),
-            '/cash_disbursement_journal': (context) =>
-                CashDisbursementJournalScreen(),
-            '/transactions': (context) => TransactionsScreen(),
-            '/account_payable': (context) => AccountPayableScreen(),
-            '/account_receivable': (context) => AccountReceivableScreen(),
-            '/biometric': (context) => BiometricScreen(),
-            '/chat': (context) => ChatListScreen(),
-          },
-          debugShowCheckedModeBanner: false,
         );
       },
     );

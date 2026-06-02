@@ -10,6 +10,7 @@ import '../l10n/app_localizations.dart';
 import '../providers/group_provider.dart';
 import '../models/group.dart';
 import 'group_conversation_screen.dart';
+import '../constants/api_constants.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -54,7 +55,7 @@ class _ChatListScreenState extends State<ChatListScreen>
     setState(() => _isLoadingUsers = true);
     try {
       final response = await http.post(
-        Uri.parse('https://igb-fems.com/LIVE/mobile_php/get_user2_list.php'),
+        Uri.parse('${ApiConstants.baseUrl}/get_user2_list.php'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'userId': authProvider.userId,
@@ -722,7 +723,7 @@ class _ChatListScreenState extends State<ChatListScreen>
     );
 
     if (chatProvider.chats.isNotEmpty) {
-      Chat? newChat;
+      Chat newChat;
       try {
         newChat = chatProvider.chats.firstWhere(
           (chat) =>
@@ -732,14 +733,12 @@ class _ChatListScreenState extends State<ChatListScreen>
       } catch (_) {
         newChat = chatProvider.chats.first;
       }
-      if (newChat != null) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ChatConversationScreen(chat: newChat!),
-          ),
-        );
-      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatConversationScreen(chat: newChat),
+        ),
+      );
     }
   }
 

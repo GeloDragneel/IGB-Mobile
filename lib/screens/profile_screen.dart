@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../providers/locale_provider.dart';
 import '../widgets/navigation_drawer.dart';
 import '../l10n/app_localizations.dart';
+import '../constants/api_constants.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -27,7 +28,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> fetchDocuments() async {
     final response = await http.get(
-      Uri.parse('https://igb-fems.com/LIVE/mobile_php/documents.php'),
+      Uri.parse('${ApiConstants.baseUrl}/documents.php'),
     );
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
@@ -504,7 +505,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         // Create multipart request
         final request = http.MultipartRequest(
           'POST',
-          Uri.parse('https://igb-fems.com/LIVE/mobile_php/upload_document.php'),
+          Uri.parse('${ApiConstants.baseUrl}/upload_document.php'),
         );
 
         // Add file

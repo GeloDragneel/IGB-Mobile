@@ -6,10 +6,10 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../providers/auth_provider.dart';
 import '../providers/locale_provider.dart';
-import '../providers/chat_provider.dart';
 import '../l10n/app_localizations.dart';
 import 'dashboard.dart';
-import 'chat_list_screen.dart';
+import 'calendar.dart';
+import '../constants/api_constants.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -67,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen>
 
       final response = await http.get(
         Uri.parse(
-          'https://igb-fems.com/LIVE/mobile_php/biometric_validation.php'
+          '${ApiConstants.baseUrl}/biometric_validation.php'
           '?keys=$storedKeys',
         ),
       );
@@ -162,14 +162,9 @@ class _LoginScreenState extends State<LoginScreen>
 
       if (result == 'Success') {
         _showSnackBar(AppLocalizations.of(context).biometricLoginSuccess, true);
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        // Update ChatProvider with user data and reload chats
-        final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-        await chatProvider.reloadAfterLogin();
-
         if (authProvider.userCount == 'User2') {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const ChatListScreen()),
+            MaterialPageRoute(builder: (context) => const CalendarScreen()),
           );
         } else {
           Navigator.of(context).pushReplacement(
@@ -748,21 +743,12 @@ class _LoginScreenState extends State<LoginScreen>
                                                   return; // ✅ single mounted check after await
 
                                                 if (result == 'Success') {
-                                                  // Update ChatProvider with user data and reload chats
-                                                  final chatProvider =
-                                                      Provider.of<ChatProvider>(
-                                                        context,
-                                                        listen: false,
-                                                      );
-                                                  await chatProvider
-                                                      .reloadAfterLogin();
-
                                                   if (auth.userCount ==
                                                       'User2') {
                                                     navigator.pushReplacement(
                                                       MaterialPageRoute(
                                                         builder: (_) =>
-                                                            const ChatListScreen(),
+                                                            const CalendarScreen(),
                                                       ),
                                                     );
                                                   } else {

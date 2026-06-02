@@ -41,7 +41,9 @@ class AppDrawer extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          auth.tradeName,
+                          auth.tradeName.isNotEmpty
+                              ? auth.tradeName
+                              : auth.position,
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -68,93 +70,164 @@ class AppDrawer extends StatelessWidget {
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  ListTile(
-                    leading: Icon(Icons.home, color: Colors.white),
-                    title: Text(
-                      AppLocalizations.of(context).dashboard,
-                      style: TextStyle(color: Colors.white),
+                  if (auth.userCount != "User2")
+                    ListTile(
+                      leading: Icon(Icons.home, color: Colors.white),
+                      title: Text(
+                        AppLocalizations.of(context).dashboard,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      selected: selectedIndex == 0,
+                      selectedTileColor: Color(0xFF101222),
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/dashboard');
+                      },
                     ),
-                    selected: selectedIndex == 0,
-                    selectedTileColor: Color(0xFF101222),
-                    onTap: () {
-                      Navigator.pushReplacementNamed(context, '/dashboard');
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(Icons.attach_money, color: Colors.white),
-                    title: Text(
-                      AppLocalizations.of(context).sales,
-                      style: TextStyle(color: Colors.white),
+                  if (auth.userCount != "User2")
+                    ListTile(
+                      leading: Icon(Icons.attach_money, color: Colors.white),
+                      title: Text(
+                        AppLocalizations.of(context).sales,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      selected: selectedIndex == 3,
+                      selectedTileColor: Color(0xFF101222),
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/sales');
+                      },
                     ),
-                    selected: selectedIndex == 3,
-                    selectedTileColor: Color(0xFF101222),
-                    onTap: () {
-                      Navigator.pushReplacementNamed(context, '/sales');
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(Icons.shopping_cart, color: Colors.white),
-                    title: Text(
-                      AppLocalizations.of(context).purchases,
-                      style: TextStyle(color: Colors.white),
+                  if (auth.userCount != "User2")
+                    ListTile(
+                      leading: Icon(Icons.shopping_cart, color: Colors.white),
+                      title: Text(
+                        AppLocalizations.of(context).purchases,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      selected: selectedIndex == 4,
+                      selectedTileColor: Color(0xFF101222),
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/purchases');
+                      },
                     ),
-                    selected: selectedIndex == 4,
-                    selectedTileColor: Color(0xFF101222),
-                    onTap: () {
-                      Navigator.pushReplacementNamed(context, '/purchases');
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(Icons.receipt, color: Colors.white),
-                    title: Text(
-                      AppLocalizations.of(context).expenses,
-                      style: TextStyle(color: Colors.white),
+                  if (auth.userCount != "User2")
+                    ListTile(
+                      leading: Icon(Icons.receipt, color: Colors.white),
+                      title: Text(
+                        AppLocalizations.of(context).expenses,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      selected: selectedIndex == 5,
+                      selectedTileColor: Color(0xFF101222),
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/expenses');
+                      },
                     ),
-                    selected: selectedIndex == 5,
-                    selectedTileColor: Color(0xFF101222),
-                    onTap: () {
-                      Navigator.pushReplacementNamed(context, '/expenses');
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(Icons.report, color: Colors.white),
-                    title: Text(
-                      AppLocalizations.of(context).reports,
-                      style: TextStyle(color: Colors.white),
+                  if (auth.userCount != "User2")
+                    ListTile(
+                      leading: Icon(Icons.report, color: Colors.white),
+                      title: Text(
+                        AppLocalizations.of(context).reports,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      selected: selectedIndex == 6,
+                      selectedTileColor: Color(0xFF101222),
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/reports');
+                      },
                     ),
-                    selected: selectedIndex == 6,
-                    selectedTileColor: Color(0xFF101222),
-                    onTap: () {
-                      Navigator.pushReplacementNamed(context, '/reports');
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(Icons.person, color: Colors.white),
-                    title: Text(
-                      AppLocalizations.of(context).profile,
-                      style: TextStyle(color: Colors.white),
+                  if (auth.userCount != "User2")
+                    ListTile(
+                      leading: Icon(Icons.person, color: Colors.white),
+                      title: Text(
+                        AppLocalizations.of(context).profile,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      selected: selectedIndex == 1,
+                      selectedTileColor: Color(0xFF101222),
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/profile');
+                      },
                     ),
-                    selected: selectedIndex == 1,
-                    selectedTileColor: Color(0xFF101222),
-                    onTap: () {
-                      Navigator.pushReplacementNamed(context, '/profile');
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(Icons.calendar_month, color: Colors.white),
-                    title: Text(
-                      AppLocalizations.of(context).accountingPeriod,
-                      style: TextStyle(color: Colors.white),
+                  if (auth.userCount != "User2")
+                    ListTile(
+                      leading: Icon(Icons.calendar_month, color: Colors.white),
+                      title: Text(
+                        AppLocalizations.of(context).accountingPeriod,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      selected: selectedIndex == 2,
+                      selectedTileColor: Color(0xFF101222),
+                      onTap: () {
+                        Navigator.pushReplacementNamed(
+                          context,
+                          '/accountingPeriod',
+                        );
+                      },
                     ),
-                    selected: selectedIndex == 2,
-                    selectedTileColor: Color(0xFF101222),
-                    onTap: () {
-                      Navigator.pushReplacementNamed(
-                        context,
-                        '/accountingPeriod',
-                      );
-                    },
-                  ),
+                  if (auth.userCount == "User2")
+                    ListTile(
+                      leading: Icon(Icons.calendar_month, color: Colors.white),
+                      title: Text(
+                        AppLocalizations.of(context).calendar,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      selected: selectedIndex == 2,
+                      selectedTileColor: Color(0xFF101222),
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/calendar');
+                      },
+                    ),
+                  if (auth.userCount == "User2" &&
+                      (auth.designationId == "1" ||
+                          auth.designationId == "6" ||
+                          auth.designationId == "7"))
+                    ListTile(
+                      leading: Icon(Icons.payment, color: Colors.white),
+                      title: Text(
+                        AppLocalizations.of(context).payment,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      selected: selectedIndex == 2,
+                      selectedTileColor: Color(0xFF101222),
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/payment');
+                      },
+                    ),
+                  if (auth.userCount == "User2" &&
+                      (auth.designationId == "1" ||
+                          auth.designationId == "6" ||
+                          auth.designationId == "7"))
+                    ListTile(
+                      leading: Icon(Icons.payments, color: Colors.white),
+                      title: Text(
+                        AppLocalizations.of(context).collection,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      selected: selectedIndex == 2,
+                      selectedTileColor: Color(0xFF101222),
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/collection');
+                      },
+                    ),
+                  if (auth.userCount == "User2" &&
+                      (auth.designationId == "1" ||
+                          auth.designationId == "6" ||
+                          auth.designationId == "7"))
+                    ListTile(
+                      leading: Icon(
+                        Icons.account_balance_wallet,
+                        color: Colors.white,
+                      ),
+                      title: Text(
+                        AppLocalizations.of(context).deposit,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      selected: selectedIndex == 2,
+                      selectedTileColor: Color(0xFF101222),
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/deposit');
+                      },
+                    ),
                   ListTile(
                     leading: Icon(Icons.fingerprint, color: Colors.white),
                     title: Text(

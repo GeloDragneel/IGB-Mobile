@@ -16,6 +16,7 @@ import '../providers/scan_provider.dart';
 import '../providers/auth_provider.dart';
 import 'package:http_parser/http_parser.dart';
 import '../l10n/app_localizations.dart';
+import '../constants/api_constants.dart';
 
 class ExpensesScanDialog extends StatefulWidget {
   final VoidCallback? onUploadSuccess;
@@ -57,7 +58,7 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final response = await http.get(
         Uri.parse(
-          'https://igb-fems.com/LIVE/mobile_php/charts_expenses.php?userId=${auth.userId}',
+          '${ApiConstants.baseUrl}/charts_expenses.php?userId=${auth.userId}',
         ),
       );
       if (response.statusCode == 200) {
@@ -86,7 +87,7 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
     try {
       final result = await documentScanner.scanDocument();
       final images = result.images;
-      if (images != null && images.isNotEmpty) {
+      if (images.isNotEmpty) {
         setState(() {
           _images = images.map((p) => File(p)).toList();
           _isProcessing = true;
@@ -304,11 +305,11 @@ class _ExpensesScanDialogState extends State<ExpensesScanDialog> {
     if (!await pdfFile.exists()) throw Exception('PDF file does not exist');
     if (await pdfFile.length() == 0) throw Exception('PDF file is empty');
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    final uri = Uri.parse(
-      'https://igb-fems.com/LIVE/mobile_php/upload_receipt.php',
-    );
+    final uri = Uri.parse('${ApiConstants.baseUrl}/upload_receipt.php');
     final request = http.MultipartRequest('POST', uri)
       ..fields['userId'] = auth.userId.toString()
+      ..fields['employeeId'] = auth.employeeId.toString()
+      ..fields['caid'] = auth.caid.toString()
       ..fields['text'] = text
       ..fields['type'] = 'expenses'
       ..fields['accountCode'] = _selectedAccountCode ?? '';

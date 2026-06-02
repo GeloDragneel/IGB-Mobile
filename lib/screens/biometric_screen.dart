@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
 import '../l10n/app_localizations.dart';
+import '../constants/api_constants.dart';
 
 class BiometricScreen extends StatefulWidget {
   const BiometricScreen({super.key});
@@ -66,7 +67,7 @@ class _BiometricScreenState extends State<BiometricScreen>
 
       final response = await http.get(
         Uri.parse(
-          'https://igb-fems.com/LIVE/mobile_php/biometric_validation.php'
+          '${ApiConstants.baseUrl}/biometric_validation.php'
           '?keys=$key',
         ),
       );
@@ -160,9 +161,7 @@ class _BiometricScreenState extends State<BiometricScreen>
           'FP_${timestamp}_CAID_${authProvider.comId}_USER_${authProvider.userId}';
 
       final response = await http.post(
-        Uri.parse(
-          'https://igb-fems.com/LIVE/mobile_php/biometric_registration.php',
-        ),
+        Uri.parse('${ApiConstants.baseUrl}/biometric_registration.php'),
         body: {
           'CAID': authProvider.comId,
           'UserID': authProvider.userId,

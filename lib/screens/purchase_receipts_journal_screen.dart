@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
 import '../l10n/app_localizations.dart';
+import '../constants/api_constants.dart';
 
 class PurchaseReceiptsJournalScreen extends StatefulWidget {
   const PurchaseReceiptsJournalScreen({super.key});
@@ -137,7 +138,7 @@ class _PurchaseReceiptsJournalScreenState
           final from = DateFormat('yyyy-MM').format(_dateFrom!);
           final to = DateFormat('yyyy-MM').format(_dateTo!);
           final url =
-              'https://igb-fems.com/LIVE/mobile_php/purchase_receipt_journal.php?userId=${auth.userId}&from=$from&to=$to';
+              '${ApiConstants.baseUrl}/purchase_receipt_journal.php?userId=${auth.userId}&from=$from&to=$to';
           try {
             final response = await http.get(Uri.parse(url));
             if (response.statusCode == 200) {

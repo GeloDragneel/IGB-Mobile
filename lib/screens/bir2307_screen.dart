@@ -6,6 +6,7 @@ import 'dart:convert';
 import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
 import '../l10n/app_localizations.dart';
+import '../constants/api_constants.dart';
 
 class Bir2307Screen extends StatefulWidget {
   const Bir2307Screen({super.key});
@@ -188,7 +189,7 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
     final fromStr = DateFormat('yyyy-MM').format(_dateFrom!);
     final toStr = DateFormat('yyyy-MM').format(_dateTo!);
     final url =
-        'https://igb-fems.com/LIVE/mobile_php/bir2307.php?userId=${auth.userId}&from=$fromStr&to=$toStr&reportType=$_selectedReportType&branchType=${auth.branchType}&clientNum=${auth.clientNum}';
+        '${ApiConstants.baseUrl}/bir2307.php?userId=${auth.userId}&from=$fromStr&to=$toStr&reportType=$_selectedReportType&branchType=${auth.branchType}&clientNum=${auth.clientNum}';
 
     setState(() => _isLoading = true);
 

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/navigation_drawer.dart';
 import '../l10n/app_localizations.dart';
+import '../constants/api_constants.dart';
 
 class GeneralLedgerScreen extends StatefulWidget {
   const GeneralLedgerScreen({super.key});
@@ -20,8 +21,8 @@ class _GeneralLedgerScreenState extends State<GeneralLedgerScreen> {
   bool _isLoading = false;
   bool _showDateFilters = true;
   List<Map<String, dynamic>> _trialBalanceData = [];
-  double _totalDebit = 0.0;
-  double _totalCredit = 0.0;
+  // double _totalDebit = 0.0;
+  // double _totalCredit = 0.0;
   final TransformationController _transformationController =
       TransformationController();
 
@@ -135,7 +136,7 @@ class _GeneralLedgerScreenState extends State<GeneralLedgerScreen> {
           final from = DateFormat('yyyy-MM').format(_dateFrom!);
           final to = DateFormat('yyyy-MM').format(_dateTo!);
           final url =
-              'https://igb-fems.com/LIVE/mobile_php/general_ledger.php?userId=${auth.userId}&from=$from&to=$to';
+              '${ApiConstants.baseUrl}/general_ledger.php?userId=${auth.userId}&from=$from&to=$to';
           try {
             final response = await http.get(Uri.parse(url));
             if (response.statusCode == 200) {
@@ -144,17 +145,16 @@ class _GeneralLedgerScreenState extends State<GeneralLedgerScreen> {
                 final invoices = List<Map<String, dynamic>>.from(
                   data['invoices'],
                 );
-                double totalDebit = 0.0;
-                double totalCredit = 0.0;
-                for (var item in invoices) {
-                  totalDebit += double.tryParse(item['Debit'].toString()) ?? 0;
-                  totalCredit +=
-                      double.tryParse(item['Credit'].toString()) ?? 0;
-                }
+                // double totalDebit = 0.0;
+                // double totalCredit = 0.0;
+                // for (var item in invoices) {
+                // totalDebit += double.tryParse(item['Debit'].toString()) ?? 0;
+                // totalCredit += double.tryParse(item['Credit'].toString()) ?? 0;
+                // }
                 setState(() {
                   _trialBalanceData = invoices;
-                  _totalDebit = totalDebit;
-                  _totalCredit = totalCredit;
+                  // _totalDebit = totalDebit;
+                  // _totalCredit = totalCredit;
                   _isLoading = false;
                   _showDateFilters = false;
                 });

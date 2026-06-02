@@ -8,7 +8,7 @@ import '../providers/auth_provider.dart';
 import 'sales_scan_dialog.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../l10n/app_localizations.dart';
-import '../widgets/chat_bubble.dart';
+import '../constants/api_constants.dart';
 
 // ─── Theme Constants ───────────────────────────────────────────────
 class _T {
@@ -99,7 +99,7 @@ class _SalesScreenState extends State<SalesScreen>
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final res = await http.get(
       Uri.parse(
-        'https://igb-fems.com/LIVE/mobile_php/sales.php'
+        '${ApiConstants.baseUrl}/sales.php'
         '?userId=${auth.userId}&from=${auth.fromDate}&to=${auth.toDate}',
       ),
     );
@@ -149,7 +149,7 @@ class _SalesScreenState extends State<SalesScreen>
     try {
       final res = await http.get(
         Uri.parse(
-          'https://igb-fems.com/LIVE/mobile_php/delete_transaction.php?id=${record.id}',
+          '${ApiConstants.baseUrl}/delete_transaction.php?id=${record.id}',
         ),
       );
       if (res.statusCode == 200) {
@@ -241,7 +241,6 @@ class _SalesScreenState extends State<SalesScreen>
                   ],
                 ),
               ),
-              const ChatBubble(),
             ],
           );
         },
@@ -1034,7 +1033,7 @@ class _ViewScreenState extends State<ViewScreen> {
     try {
       final res = await http.get(
         Uri.parse(
-          'https://igb-fems.com/LIVE/mobile_php/sales_info.php'
+          '${ApiConstants.baseUrl}/sales_info.php'
           '?InvoiceNo=${widget.invoiceNo}&UserID=${widget.userId}',
         ),
       );
