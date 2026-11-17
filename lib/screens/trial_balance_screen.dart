@@ -127,7 +127,7 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
           final from = DateFormat('yyyy-MM').format(_dateFrom!);
           final to = DateFormat('yyyy-MM').format(_dateTo!);
           final url =
-              '${ApiConstants.baseUrl}/trial_balance.php?userId=${auth.userId}&from=$from&to=$to';
+              '${ApiConstants.baseUrl}/trial_balance?userId=${auth.userId}&from=$from&to=$to';
           try {
             final response = await http.get(Uri.parse(url));
             if (response.statusCode == 200) {

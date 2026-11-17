@@ -55,7 +55,7 @@ class _ChatListScreenState extends State<ChatListScreen>
     setState(() => _isLoadingUsers = true);
     try {
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/get_user2_list.php'),
+        Uri.parse('${ApiConstants.baseUrl}/get_user2_list'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'userId': authProvider.userId,

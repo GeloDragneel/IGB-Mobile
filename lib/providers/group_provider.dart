@@ -33,7 +33,7 @@ class GroupProvider with ChangeNotifier {
 
     try {
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/group_get_list.php'),
+        Uri.parse('${ApiConstants.baseUrl}/group_get_list'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'userId': _currentUserId,
@@ -84,7 +84,7 @@ class GroupProvider with ChangeNotifier {
 
     try {
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/group_get_messages.php'),
+        Uri.parse('${ApiConstants.baseUrl}/group_get_messages'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'groupId': groupId,
@@ -144,7 +144,7 @@ class GroupProvider with ChangeNotifier {
       }
 
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/group_send_message.php'),
+        Uri.parse('${ApiConstants.baseUrl}/group_send_message'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'groupId': groupId,
@@ -196,7 +196,7 @@ class GroupProvider with ChangeNotifier {
   ) async {
     try {
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/group_create.php'),
+        Uri.parse('${ApiConstants.baseUrl}/group_create'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'groupName': groupName,
@@ -226,7 +226,7 @@ class GroupProvider with ChangeNotifier {
   Future<List<Map<String, dynamic>>> getMembers(String groupId) async {
     try {
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/group_get_members.php'),
+        Uri.parse('${ApiConstants.baseUrl}/group_get_members'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'groupId': groupId}),
       );
@@ -245,7 +245,7 @@ class GroupProvider with ChangeNotifier {
   Future<bool> leaveGroup(String groupId) async {
     try {
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/group_leave.php'),
+        Uri.parse('${ApiConstants.baseUrl}/group_leave'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'groupId': groupId,
@@ -270,7 +270,7 @@ class GroupProvider with ChangeNotifier {
   Future<List<Map<String, dynamic>>> getAvailableUsers(String groupId) async {
     try {
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/group_get_available_users.php'),
+        Uri.parse('${ApiConstants.baseUrl}/group_get_available_users'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'groupId': groupId}),
       );
@@ -300,7 +300,7 @@ class GroupProvider with ChangeNotifier {
       };
 
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/group_add_members.php'),
+        Uri.parse('${ApiConstants.baseUrl}/group_add_members'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
       );

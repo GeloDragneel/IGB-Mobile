@@ -189,7 +189,7 @@ class _Bir2307ScreenState extends State<Bir2307Screen> {
     final fromStr = DateFormat('yyyy-MM').format(_dateFrom!);
     final toStr = DateFormat('yyyy-MM').format(_dateTo!);
     final url =
-        '${ApiConstants.baseUrl}/bir2307.php?userId=${auth.userId}&from=$fromStr&to=$toStr&reportType=$_selectedReportType&branchType=${auth.branchType}&clientNum=${auth.clientNum}';
+        '${ApiConstants.baseUrl}/bir2307?userId=${auth.userId}&from=$fromStr&to=$toStr&reportType=$_selectedReportType&branchType=${auth.branchType}&clientNum=${auth.clientNum}';
 
     setState(() => _isLoading = true);
 

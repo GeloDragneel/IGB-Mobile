@@ -123,7 +123,7 @@ class _DepositScreenState extends State<DepositScreen>
     });
     try {
       final res = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/deposit_list.php'),
+        Uri.parse('${ApiConstants.baseUrl}/deposit_list'),
       );
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -796,7 +796,7 @@ class _SubmitBottomSheetState extends State<_SubmitBottomSheet> {
       final request =
           http.MultipartRequest(
               'POST',
-              Uri.parse('${ApiConstants.baseUrl}/bill_deposit.php'),
+              Uri.parse('${ApiConstants.baseUrl}/bill_deposit'),
             )
             ..fields['EmployeeID'] = widget.employeeId
             ..fields['Details'] = json.encode(details);

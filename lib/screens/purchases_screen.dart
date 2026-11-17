@@ -6,24 +6,25 @@ import 'package:provider/provider.dart';
 import '../widgets/navigation_drawer.dart';
 import '../providers/auth_provider.dart';
 import 'purchase_scan_dialog.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import '../l10n/app_localizations.dart';
 import '../constants/api_constants.dart';
+import '../widgets/receipt_viewer_dialog.dart';
 
 // ─── Theme Constants ───────────────────────────────────────────────
 class _T {
-  static const bg = Color(0xFF080C14);
-  static const surface = Color(0xFF0F1521);
-  static const card = Color(0xFF141B28);
-  static const cardHover = Color(0xFF1A2235);
-  static const border = Color(0xFF1E2A3E);
-  static const accent = Color(0xFF3B82F6); // Blue for Purchases
-  static const green = Color(0xFF10B981);
-  static const red = Color(0xFFEF4444);
-  static const amber = Color(0xFFF59E0B);
-  static const textPri = Color(0xFFF1F5F9);
-  static const textSec = Color(0xFF94A3B8);
-  static const textMut = Color(0xFF475569);
+  static const bg = Color(0xFFF4F6FB);
+  static const surface = Colors.white;
+  static const card = Colors.white;
+  static const cardHover = Color(0xFFF8FAFC);
+  static const border = Color(0xFFE2E8F0);
+  static const accent = Color(0xFF2563EB);
+  static const green = Color(0xFF059669);
+  static const red = Color(0xFFDC2626);
+  static const amber = Color(0xFFD97706);
+  static const orange = Color(0xFFEA580C);
+  static const textPri = Color(0xFF0F172A);
+  static const textSec = Color(0xFF64748B);
+  static const textMut = Color(0xFF94A3B8);
 }
 
 // ─── Model ─────────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ class PurchaseRecord {
   }
 }
 
-// ─── Purchases Screen ──────────────────────────────────────────────
+// ─── Purchases Screen ──────────────────────────────────────────────────
 class PurchasesScreen extends StatefulWidget {
   const PurchasesScreen({super.key});
 
@@ -76,6 +77,7 @@ class _PurchasesScreenState extends State<PurchasesScreen>
   int _currentPage = 1;
   static const _perPage = 10;
   String _statusFilter = 'All';
+  bool _newestFirst = true;
 
   @override
   void initState() {
@@ -99,7 +101,7 @@ class _PurchasesScreenState extends State<PurchasesScreen>
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final res = await http.get(
       Uri.parse(
-        '${ApiConstants.baseUrl}/purchases.php'
+        '${ApiConstants.baseUrl}/purchases'
         '?userId=${auth.userId}&from=${auth.fromDate}&to=${auth.toDate}',
       ),
     );
@@ -109,9 +111,19 @@ class _PurchasesScreenState extends State<PurchasesScreen>
         final records = (data['invoices'] as List)
             .map((e) => PurchaseRecord.fromJson(e))
             .toList();
-        _allRecords = records;
-        _filteredRecords = records;
-        _animCtrl.forward(from: 0);
+        if (mounted) {
+          setState(() {
+            _allRecords = records;
+            _filteredRecords = [...records]
+              ..sort(
+                (a, b) => _newestFirst
+                    ? _dateOf(b).compareTo(_dateOf(a))
+                    : _dateOf(a).compareTo(_dateOf(b)),
+              );
+            _currentPage = 1;
+          });
+          _animCtrl.forward(from: 0);
+        }
         return records;
       }
     }
@@ -121,14 +133,24 @@ class _PurchasesScreenState extends State<PurchasesScreen>
   void _applyFilters() {
     final q = _searchCtrl.text.toLowerCase();
     setState(() {
-      _filteredRecords = _allRecords.where((r) {
-        final matchSearch = q.isEmpty || r.fileName.toLowerCase().contains(q);
-        final matchStatus = _statusFilter == 'All' || r.status == _statusFilter;
-        return matchSearch && matchStatus;
-      }).toList();
+      _filteredRecords =
+          _allRecords.where((r) {
+            final matchSearch =
+                q.isEmpty || r.fileName.toLowerCase().contains(q);
+            final matchStatus =
+                _statusFilter == 'All' || r.status == _statusFilter;
+            return matchSearch && matchStatus;
+          }).toList()..sort(
+            (a, b) => _newestFirst
+                ? _dateOf(b).compareTo(_dateOf(a))
+                : _dateOf(a).compareTo(_dateOf(b)),
+          );
       _currentPage = 1;
     });
   }
+
+  DateTime _dateOf(PurchaseRecord r) =>
+      DateTime.tryParse(r.dateAdded) ?? DateTime(1970);
 
   int get _totalPages =>
       (_filteredRecords.length / _perPage).ceil().clamp(1, 999);
@@ -143,18 +165,13 @@ class _PurchasesScreenState extends State<PurchasesScreen>
     final loc = AppLocalizations.of(context);
     try {
       final res = await http.get(
-        Uri.parse(
-          '${ApiConstants.baseUrl}/delete_transaction.php?id=${record.id}',
-        ),
+        Uri.parse('${ApiConstants.baseUrl}/delete_transaction?id=${record.id}'),
       );
       if (res.statusCode == 200) {
         _showSnack(loc.recordDeletedSuccess, _T.green);
-        final records = await _fetchRecords();
+        await _fetchRecords();
         if (!mounted) return;
-        setState(() {
-          _allRecords = records;
-          _filteredRecords = records;
-        });
+        _applyFilters();
       } else {
         _showSnack(loc.failedToDeleteRecord, _T.red);
       }
@@ -221,22 +238,86 @@ class _PurchasesScreenState extends State<PurchasesScreen>
             );
           }
           if (snap.hasError) return _buildError(snap.error.toString());
-          return Stack(
-            // 👈 Wrap with Stack
-            children: [
-              FadeTransition(
-                opacity: _fadeAnim,
-                child: Column(
-                  children: [
-                    _buildSearchAndFilter(),
-                    Expanded(child: _buildList()),
-                    if (_totalPages > 1) _buildPagination(),
-                  ],
-                ),
-              ),
-            ],
+          return FadeTransition(
+            opacity: _fadeAnim,
+            child: Column(
+              children: [
+                _buildSearchAndFilter(),
+                _buildTotalRow(),
+                Expanded(child: _buildList()),
+                if (_totalPages > 1) _buildPagination(),
+              ],
+            ),
           );
         },
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: SizedBox(
+            height: 52,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _T.accent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onPressed: _openScan,
+              icon: const Icon(Icons.document_scanner_rounded, size: 20),
+              label: Text(
+                '${AppLocalizations.of(context).scan} ${AppLocalizations.of(context).purchases}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openScan() => showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => PurchaseScanDialog(
+      onUploadSuccess: () async {
+        await _fetchRecords();
+        if (mounted) _applyFilters();
+      },
+    ),
+  );
+
+  // "Total ......... 42 receipts"
+  Widget _buildTotalRow() {
+    final n = _filteredRecords.length;
+    return Container(
+      color: _T.surface,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Row(
+        children: [
+          const Text(
+            'Total',
+            style: TextStyle(
+              color: _T.textPri,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '$n ${n == 1 ? 'receipt' : 'receipts'}',
+            style: const TextStyle(
+              color: _T.textPri,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -244,67 +325,26 @@ class _PurchasesScreenState extends State<PurchasesScreen>
   AppBar _buildAppBar() {
     return AppBar(
       backgroundColor: _T.surface,
+      surfaceTintColor: _T.surface,
+      foregroundColor: _T.textPri,
+      iconTheme: const IconThemeData(color: _T.textPri),
       elevation: 0,
-      centerTitle: false,
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: _T.accent.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.shopping_bag_rounded,
-              color: _T.accent,
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            AppLocalizations.of(context).purchases,
-            style: TextStyle(
-              color: _T.textPri,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ],
+      centerTitle: true,
+      title: Text(
+        AppLocalizations.of(context).purchases,
+        style: const TextStyle(
+          color: _T.textPri,
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+        ),
       ),
       actions: [
-        Container(
-          margin: const EdgeInsets.only(right: 12),
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _T.accent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              elevation: 0,
-            ),
-            onPressed: () => showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (_) => PurchaseScanDialog(
-                onUploadSuccess: () async {
-                  final records = await _fetchRecords();
-                  if (!mounted) return;
-                  setState(() {
-                    _allRecords = records;
-                    _filteredRecords = records;
-                  });
-                },
-              ),
-            ),
-            icon: const Icon(Icons.qr_code_scanner_rounded, size: 16),
-            label: Text(
-              AppLocalizations.of(context).scan,
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-            ),
-          ),
+        IconButton(
+          icon: const Icon(Icons.refresh_rounded, color: _T.textSec),
+          onPressed: () async {
+            await _fetchRecords();
+            if (mounted) _applyFilters();
+          },
         ),
       ],
       bottom: PreferredSize(
@@ -314,57 +354,126 @@ class _PurchasesScreenState extends State<PurchasesScreen>
     );
   }
 
-  Widget _buildSearchAndFilter() {
-    final total = _allRecords.length;
-    final pending = _allRecords.where((r) => r.status == 'Pending').length;
-    final confirmed = _allRecords.where((r) => r.status == 'Confirmed').length;
-    final invalid = _allRecords.where((r) => r.status == 'Invalid').length;
-    final partiallyInvalid = _allRecords
-        .where((r) => r.status == 'Partially Invalid')
-        .length;
-
-    final filters = [
+  List<Map<String, dynamic>> _filters() {
+    int c(String s) => _allRecords.where((r) => r.status == s).length;
+    final loc = AppLocalizations.of(context);
+    return [
       {
-        'label': AppLocalizations.of(context).all,
+        'label': loc.all,
         'value': 'All',
-        'count': total,
+        'count': _allRecords.length,
         'color': _T.accent,
       },
       {
-        'label': AppLocalizations.of(context).pending,
+        'label': loc.pending,
         'value': 'Pending',
-        'count': pending,
+        'count': c('Pending'),
         'color': _T.amber,
       },
       {
-        'label': AppLocalizations.of(context).confirmed,
+        'label': loc.confirmed,
         'value': 'Confirmed',
-        'count': confirmed,
+        'count': c('Confirmed'),
         'color': _T.green,
       },
       {
-        'label': AppLocalizations.of(context).invalid,
+        'label': loc.invalid,
         'value': 'Invalid',
-        'count': invalid,
+        'count': c('Invalid'),
         'color': _T.red,
       },
       {
-        'label': AppLocalizations.of(context).partiallyInvalid,
+        'label': loc.partiallyInvalid,
         'value': 'Partially Invalid',
-        'count': partiallyInvalid,
-        'color': _T.red,
+        'count': c('Partially Invalid'),
+        'color': _T.orange,
       },
     ];
+  }
 
+  Future<void> _openFilter() async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: _T.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: _T.border,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final f in _filters())
+              ListTile(
+                onTap: () => Navigator.pop(ctx, f['value'] as String),
+                leading: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: f['color'] as Color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                title: Text(
+                  f['label'] as String,
+                  style: TextStyle(
+                    color: _statusFilter == f['value'] ? _T.accent : _T.textPri,
+                    fontWeight: _statusFilter == f['value']
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                  ),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${f['count']}',
+                      style: const TextStyle(
+                        color: _T.textSec,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (_statusFilter == f['value']) ...[
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.check_rounded,
+                        color: _T.accent,
+                        size: 20,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (picked == null) return;
+    setState(() => _statusFilter = picked);
+    _applyFilters();
+  }
+
+  Widget _buildSearchAndFilter() {
+    final active = _statusFilter != 'All';
+    final f = _filters().firstWhere((x) => x['value'] == _statusFilter);
     return Container(
       color: _T.surface,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
       child: Column(
         children: [
-          // Search bar (unchanged)
           Container(
             decoration: BoxDecoration(
-              color: _T.card,
+              color: _T.bg,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: _T.border),
             ),
@@ -394,86 +503,115 @@ class _PurchasesScreenState extends State<PurchasesScreen>
                       )
                     : null,
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 13),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
           ),
-          const SizedBox(height: 10),
-
-          // ✅ Combined filter + count chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+          const SizedBox(height: 6),
+          // Sorted by Date  ↓        filter
+          Container(
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: _T.border)),
+            ),
             child: Row(
-              children: filters.map((f) {
-                final active = _statusFilter == f['value'];
-                final color = f['color'] as Color;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() => _statusFilter = f['value'] as String);
-                      _applyFilters();
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 7,
+              children: [
+                const Icon(Icons.sort_rounded, color: _T.textSec, size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                  'Sorted by Date',
+                  style: TextStyle(
+                    color: _T.textSec,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: _newestFirst ? 'Newest first' : 'Oldest first',
+                  icon: Icon(
+                    _newestFirst
+                        ? Icons.arrow_downward_rounded
+                        : Icons.arrow_upward_rounded,
+                    color: _T.textPri,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    setState(() => _newestFirst = !_newestFirst);
+                    _applyFilters();
+                  },
+                ),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        Icons.filter_alt_rounded,
+                        color: active ? f['color'] as Color : _T.textPri,
+                        size: 21,
                       ),
-                      decoration: BoxDecoration(
-                        color: active ? color.withOpacity(0.15) : _T.card,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: active ? color : _T.border,
-                          width: active ? 1.5 : 1,
+                      onPressed: _openFilter,
+                    ),
+                    if (active)
+                      Positioned(
+                        right: 6,
+                        top: 6,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: f['color'] as Color,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Count badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: color.withOpacity(active ? 0.25 : 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '${f['count']}',
-                              style: TextStyle(
-                                color: color,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          // Label
-                          Text(
-                            f['label'] as String,
-                            style: TextStyle(
-                              color: active ? color : _T.textSec,
-                              fontSize: 12,
-                              fontWeight: active
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
+                  ],
+                ),
+              ],
             ),
           ),
+          if (active)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: InputChip(
+                  label: Text('${f['label']} · ${f['count']}'),
+                  labelStyle: TextStyle(
+                    color: f['color'] as Color,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                  backgroundColor: (f['color'] as Color).withOpacity(0.08),
+                  side: BorderSide(
+                    color: (f['color'] as Color).withOpacity(0.3),
+                  ),
+                  onDeleted: () {
+                    setState(() => _statusFilter = 'All');
+                    _applyFilters();
+                  },
+                  deleteIconColor: f['color'] as Color,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
+
+  static const _monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
 
   Widget _buildList() {
     if (_filteredRecords.isEmpty) {
@@ -489,18 +627,59 @@ class _PurchasesScreenState extends State<PurchasesScreen>
             const SizedBox(height: 12),
             Text(
               AppLocalizations.of(context).noRecordFound,
-              style: TextStyle(color: _T.textMut, fontSize: 15),
+              style: const TextStyle(color: _T.textMut, fontSize: 15),
             ),
           ],
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      itemCount: _pageRecords.length,
-      itemBuilder: (context, i) => _buildCard(_pageRecords[i], i),
-    );
+
+    // group this page's rows by month
+    final page = _pageRecords;
+    final items = <Widget>[];
+    String? lastKey;
+    for (var i = 0; i < page.length; i++) {
+      final d = DateTime.tryParse(page[i].dateAdded);
+      final key = d == null ? '—' : '${_monthNames[d.month - 1]} ${d.year}';
+      if (key != lastKey) {
+        final count = _filteredRecords.where((r) {
+          final x = DateTime.tryParse(r.dateAdded);
+          return (x == null ? '—' : '${_monthNames[x.month - 1]} ${x.year}') ==
+              key;
+        }).length;
+        items.add(_monthHeader(key, count));
+        lastKey = key;
+      }
+      items.add(_buildCard(page[i], i));
+    }
+    return ListView(padding: const EdgeInsets.only(bottom: 8), children: items);
   }
+
+  Widget _monthHeader(String label, int count) => Container(
+    color: _T.bg,
+    padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+    child: Row(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: _T.textSec,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          '$count',
+          style: const TextStyle(
+            color: _T.textSec,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    ),
+  );
 
   String _translateStatus(String status, BuildContext context) {
     switch (status) {
@@ -517,312 +696,186 @@ class _PurchasesScreenState extends State<PurchasesScreen>
     }
   }
 
-  Widget _buildCard(PurchaseRecord record, int index) {
-    final isPending = record.status == 'Pending';
-    final statusColor = isPending ? _T.amber : _T.green;
-    final timeAgo = _timeAgo(record.dateAdded);
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'Confirmed':
+        return _T.green;
+      case 'Invalid':
+        return _T.red;
+      case 'Partially Invalid':
+        return _T.orange;
+      default:
+        return _T.amber;
+    }
+  }
 
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: 300 + (index * 60)),
-      curve: Curves.easeOut,
-      builder: (context, val, child) => Opacity(
-        opacity: val,
-        child: Transform.translate(
-          offset: Offset(0, 20 * (1 - val)),
-          child: child,
-        ),
+  IconData _statusIcon(String status) {
+    switch (status) {
+      case 'Confirmed':
+        return Icons.check_circle_outline_rounded;
+      case 'Invalid':
+        return Icons.cancel_outlined;
+      case 'Partially Invalid':
+        return Icons.error_outline_rounded;
+      default:
+        return Icons.hourglass_top_rounded;
+    }
+  }
+
+  void _openReceipt(PurchaseRecord record) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    // the scanned PDF comes from the new backend (S3)
+    final pdfUrl =
+        '${ApiConstants.baseUrl}/view_scan?id=${record.id}&userId=${auth.userId}';
+    showDialog(
+      context: context,
+      builder: (_) => ReceiptViewerDialog(
+        pdfUrl: pdfUrl,
+        title: record.fileName.isNotEmpty
+            ? record.fileName
+            : AppLocalizations.of(context).viewReceipt,
       ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(
-          color: _T.card,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _T.border),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () {},
-            splashColor: _T.accent.withOpacity(0.05),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: statusColor.withOpacity(0.25)),
+    );
+  }
+
+  Widget _buildCard(PurchaseRecord record, int index) {
+    final color = _statusColor(record.status);
+    final loc = AppLocalizations.of(context);
+    final d = DateTime.tryParse(record.dateAdded);
+    final date = d == null ? record.dateAdded : '${d.month}/${d.day}/${d.year}';
+
+    return Material(
+      color: _T.surface,
+      child: InkWell(
+        onTap: () => _openReceipt(record),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 10, 4, 10),
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: _T.border)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFEE2E2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.picture_as_pdf_rounded,
+                  color: Color(0xFFDC2626),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      record.fileName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _T.textPri,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
                     ),
-                    child: Icon(
-                      isPending
-                          ? Icons.hourglass_top_rounded
-                          : Icons.check_circle_outline_rounded,
-                      color: statusColor,
-                      size: 22,
+                    const SizedBox(height: 3),
+                    Text(
+                      record.reference.isNotEmpty
+                          ? '$date · ${loc.ref}: ${record.reference}'
+                          : date,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: _T.textMut, fontSize: 11.5),
                     ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  _translateStatus(record.status, context),
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(
+                  Icons.more_vert_rounded,
+                  color: _T.textSec,
+                  size: 20,
+                ),
+                color: _T.card,
+                surfaceTintColor: _T.card,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: _T.border),
+                ),
+                onSelected: (val) async {
+                  if (val == 'viewReceipt') {
+                    _openReceipt(record);
+                  } else if (val == 'delete') {
+                    final ok = await _showDeleteDialog();
+                    if (ok == true) _deleteRecord(record);
+                  }
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'viewReceipt',
+                    child: Row(
                       children: [
+                        const Icon(
+                          Icons.visibility_rounded,
+                          size: 17,
+                          color: _T.accent,
+                        ),
+                        const SizedBox(width: 10),
                         Text(
-                          record.fileName,
+                          loc.viewReceipt,
                           style: const TextStyle(
                             color: _T.textPri,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                            fontSize: 13.5,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.access_time_rounded,
-                              size: 11,
-                              color: _T.textMut,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              timeAgo,
-                              style: const TextStyle(
-                                color: _T.textMut,
-                                fontSize: 11,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 7,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                _translateStatus(record.status, context),
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (record.reference.isNotEmpty) ...[
-                          const SizedBox(height: 3),
+                      ],
+                    ),
+                  ),
+                  if (record.status == 'Pending')
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.delete_outline_rounded,
+                            size: 17,
+                            color: _T.red,
+                          ),
+                          const SizedBox(width: 10),
                           Text(
-                            '${AppLocalizations.of(context).ref}: ${record.reference}',
+                            loc.delete,
                             style: const TextStyle(
-                              color: _T.textMut,
-                              fontSize: 11,
+                              color: _T.red,
+                              fontSize: 13.5,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                  PopupMenuButton<String>(
-                    icon: const Icon(
-                      Icons.more_vert_rounded,
-                      color: _T.textSec,
-                      size: 20,
-                    ),
-                    color: _T.cardHover,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: const BorderSide(color: _T.border),
-                    ),
-                    onSelected: (val) async {
-                      if (val == 'view') {
-                        final auth = Provider.of<AuthProvider>(
-                          context,
-                          listen: false,
-                        );
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ViewScreen(
-                              invoiceNo: record.reference,
-                              userId: auth.userId,
-                            ),
-                          ),
-                        );
-                      } else if (val == 'viewReceipt') {
-                        final auth = Provider.of<AuthProvider>(
-                          context,
-                          listen: false,
-                        );
-                        final pdfUrl =
-                            'https://igb-fems.com/LIVE/pages/get_attachment2.php'
-                            '?ID=${auth.userId}&file=${record.fileName}&folder=Vendor_Invoices';
-
-                        final url =
-                            'https://docs.google.com/viewer?url=${Uri.encodeComponent(pdfUrl)}&embedded=true';
-
-                        showDialog(
-                          context: context,
-                          builder: (_) => Dialog(
-                            backgroundColor: _T.card,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            insetPadding: const EdgeInsets.all(12),
-                            child: SizedBox(
-                              height: MediaQuery.of(context).size.height * 0.85,
-                              child: Column(
-                                children: [
-                                  // Header
-                                  Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      16,
-                                      12,
-                                      8,
-                                      12,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.receipt_long_rounded,
-                                          color: _T.accent,
-                                          size: 18,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            AppLocalizations.of(
-                                              context,
-                                            ).viewReceipt,
-                                            style: TextStyle(
-                                              color: _T.textPri,
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 15,
-                                            ),
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.close_rounded,
-                                            color: _T.textSec,
-                                            size: 20,
-                                          ),
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const Divider(color: _T.border, height: 1),
-                                  // WebView
-                                  Expanded(
-                                    child: ClipRRect(
-                                      borderRadius: const BorderRadius.only(
-                                        bottomLeft: Radius.circular(16),
-                                        bottomRight: Radius.circular(16),
-                                      ),
-                                      child: WebViewWidget(
-                                        controller: WebViewController()
-                                          ..setJavaScriptMode(
-                                            JavaScriptMode.unrestricted,
-                                          )
-                                          ..loadRequest(Uri.parse(url)),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      } else if (val == 'delete') {
-                        final ok = await _showDeleteDialog();
-                        if (ok == true) _deleteRecord(record);
-                      }
-                    },
-                    itemBuilder: (_) => [
-                      if (record.status == 'Pending') ...[
-                        PopupMenuItem(
-                          value: 'viewReceipt',
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.visibility_rounded,
-                                size: 16,
-                                color: _T.accent,
-                              ),
-                              SizedBox(width: 10),
-                              Text(
-                                AppLocalizations.of(context).viewReceipt,
-                                style: TextStyle(
-                                  color: _T.accent,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.delete_outline_rounded,
-                                size: 16,
-                                color: _T.red,
-                              ),
-                              SizedBox(width: 10),
-                              Text(
-                                AppLocalizations.of(context).delete,
-                                style: TextStyle(color: _T.red, fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ] else ...[
-                        PopupMenuItem(
-                          value: 'viewReceipt',
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.visibility_rounded,
-                                size: 16,
-                                color: _T.accent,
-                              ),
-                              SizedBox(width: 10),
-                              Text(
-                                AppLocalizations.of(context).viewReceipt,
-                                style: TextStyle(
-                                  color: _T.accent,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
                 ],
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -834,6 +887,7 @@ class _PurchasesScreenState extends State<PurchasesScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _T.card,
+        surfaceTintColor: _T.card,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: const BorderSide(color: _T.border),
@@ -886,8 +940,11 @@ class _PurchasesScreenState extends State<PurchasesScreen>
 
   Widget _buildPagination() {
     return Container(
-      color: _T.surface,
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: const BoxDecoration(
+        color: _T.surface,
+        border: Border(top: BorderSide(color: _T.border)),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -953,7 +1010,7 @@ class _PurchasesScreenState extends State<PurchasesScreen>
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: enabled ? _T.card : Colors.transparent,
+          color: enabled ? _T.bg : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: enabled ? _T.border : Colors.transparent),
         ),
@@ -1022,7 +1079,7 @@ class _ViewScreenState extends State<ViewScreen> {
     try {
       final res = await http.get(
         Uri.parse(
-          '${ApiConstants.baseUrl}/purchases_info.php'
+          '${ApiConstants.baseUrl}/purchases_info'
           '?InvoiceNo=${widget.invoiceNo}&UserID=${widget.userId}',
         ),
       );
@@ -1067,6 +1124,7 @@ class _ViewScreenState extends State<ViewScreen> {
       backgroundColor: _T.bg,
       appBar: AppBar(
         backgroundColor: _T.surface,
+        surfaceTintColor: _T.surface,
         elevation: 0,
         foregroundColor: _T.textPri,
         title: const Text(
@@ -1114,7 +1172,7 @@ class _ViewScreenState extends State<ViewScreen> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [_T.accent.withOpacity(0.18), _T.card],
+                colors: [_T.accent.withOpacity(0.10), _T.card],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -1304,9 +1362,7 @@ class _ViewScreenState extends State<ViewScreen> {
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: i % 2 == 0
-                          ? _T.surface.withOpacity(0.5)
-                          : Colors.transparent,
+                      color: i % 2 == 0 ? _T.bg : Colors.transparent,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(

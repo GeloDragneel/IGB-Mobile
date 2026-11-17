@@ -139,7 +139,7 @@ class _EBirScreenState extends State<EBirScreen> {
     final from = DateFormat('yyyy-MM').format(_dateFrom!);
     final to = DateFormat('yyyy-MM').format(_dateTo!);
     final url =
-        '${ApiConstants.baseUrl}/e_bir.php?userId=${auth.userId}&from=$from&to=$to&branchType=${auth.branchType}&clientNum=${auth.clientNum}';
+        '${ApiConstants.baseUrl}/e_bir?userId=${auth.userId}&from=$from&to=$to&branchType=${auth.branchType}&clientNum=${auth.clientNum}';
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {

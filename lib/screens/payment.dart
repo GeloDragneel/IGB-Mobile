@@ -261,7 +261,7 @@ class _PaymentScreenState extends State<PaymentScreen>
     setState(() => _clientsLoading = true);
     try {
       final res = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/client_name_list.php'),
+        Uri.parse('${ApiConstants.baseUrl}/client_name_list'),
       );
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -290,7 +290,7 @@ class _PaymentScreenState extends State<PaymentScreen>
     try {
       final res = await http.get(
         Uri.parse(
-          '${ApiConstants.baseUrl}/client_account_list.php?ClientNum=$clientNum',
+          '${ApiConstants.baseUrl}/client_account_list?ClientNum=$clientNum',
         ),
       );
       if (res.statusCode == 200) {
@@ -317,7 +317,7 @@ class _PaymentScreenState extends State<PaymentScreen>
     });
     try {
       final res = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/service_period.php?CAID=$caid'),
+        Uri.parse('${ApiConstants.baseUrl}/service_period?CAID=$caid'),
       );
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -342,7 +342,7 @@ class _PaymentScreenState extends State<PaymentScreen>
     try {
       final res = await http.get(
         Uri.parse(
-          '${ApiConstants.baseUrl}/service_list.php?TransNumber=$transNumber',
+          '${ApiConstants.baseUrl}/service_list?TransNumber=$transNumber',
         ),
       );
       if (res.statusCode == 200) {
@@ -370,7 +370,7 @@ class _PaymentScreenState extends State<PaymentScreen>
     try {
       final res = await http.get(
         Uri.parse(
-          '${ApiConstants.baseUrl}/payment_list.php?TransNumber=$transNumber',
+          '${ApiConstants.baseUrl}/payment_list?TransNumber=$transNumber',
         ),
       );
       if (res.statusCode == 200) {
@@ -1202,7 +1202,7 @@ class _AddPaymentBottomSheetState extends State<_AddPaymentBottomSheet> {
     setState(() => _paymentTypesLoading = true);
     try {
       final res = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/payment_type_list.php'),
+        Uri.parse('${ApiConstants.baseUrl}/payment_type_list'),
       );
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -1222,7 +1222,7 @@ class _AddPaymentBottomSheetState extends State<_AddPaymentBottomSheet> {
     setState(() => _chequeTypesLoading = true);
     try {
       final res = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/cheque_type_list.php'),
+        Uri.parse('${ApiConstants.baseUrl}/cheque_type_list'),
       );
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -1242,7 +1242,7 @@ class _AddPaymentBottomSheetState extends State<_AddPaymentBottomSheet> {
     setState(() => _paymentColTypesLoading = true);
     try {
       final res = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/payment_col_type.php'),
+        Uri.parse('${ApiConstants.baseUrl}/payment_col_type'),
       );
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -1262,7 +1262,7 @@ class _AddPaymentBottomSheetState extends State<_AddPaymentBottomSheet> {
     setState(() => _receiptTypesLoading = true);
     try {
       final res = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/payment_receipt_type.php'),
+        Uri.parse('${ApiConstants.baseUrl}/payment_receipt_type'),
       );
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -1340,7 +1340,7 @@ class _AddPaymentBottomSheetState extends State<_AddPaymentBottomSheet> {
     setState(() => _isSaving = true);
 
     try {
-      final uri = Uri.parse('${ApiConstants.baseUrl}/bill_payment.php');
+      final uri = Uri.parse('${ApiConstants.baseUrl}/bill_payment');
 
       // ── All values must be strings for multipart/form-data ──────────
       final body = <String, String>{

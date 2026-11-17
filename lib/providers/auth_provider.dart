@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_constants.dart';
+
 class AuthProvider extends ChangeNotifier {
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
@@ -68,7 +69,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<String> login(String username, String password) async {
-    final url = Uri.parse('${ApiConstants.baseUrl}/login.php');
+    final url = Uri.parse('${ApiConstants.baseUrl}/login');
 
     try {
       final response = await http.post(
@@ -90,30 +91,7 @@ class AuthProvider extends ChangeNotifier {
 
       if (result != 'Success') return result;
 
-      _isLoggedIn = true;
-      _username = username;
-      _tradeName = data['tradeName'] ?? '';
-      _fullName = data['fullName'] ?? '';
-      _branchCode = data['branchCode'] ?? '';
-      _userId = data['userId']?.toString() ?? '';
-      _employeeId = data['employeeId']?.toString() ?? '';
-      _fromDate = data['fromDate'] ?? '';
-      _toDate = data['toDate'] ?? '';
-      _branchType = data['branchType'] ?? '';
-      _clientNum = data['clientNum'] ?? '';
-      _tin = data['TIN'] ?? '';
-      _comId = data['comId']?.toString() ?? '';
-      _caid = data['CAID']?.toString() ?? '';
-      _userCount = data['userCount'] ?? '';
-      _workId = data['workId'] ?? '';
-      _userTypeId = data['userTypeId'] ?? '';
-      _designationId = data['designationId'] ?? '';
-      _position = data['position'] ?? '';
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_id', _userId);
-      await prefs.setString('user_name', _fullName);
-      await prefs.setString('user_count', _userCount);
+      await _apply(data, username);
 
       if (_caid.isNotEmpty) {
         await _secureStorage.write(
@@ -132,6 +110,63 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('Login error: $e');
       return 'Error';
     }
+  }
+
+  /// Fingerprint login: the phone checked the fingerprint, the server logs in the registered
+  /// account (CAID + UserID from biometric_validation). No password is used or stored.
+  Future<String> loginWithBiometricKey({
+    required String caid,
+    required String userId,
+    String username = '',
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}/biometric_login'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'CAID': caid, 'UserID': userId}),
+      );
+      if (response.statusCode != 200) return 'Error';
+      final data = jsonDecode(response.body);
+      final String result = data['result'] ?? 'Error';
+      if (result != 'Success') return result;
+      await _apply(data, username);
+      notifyListeners();
+      return result;
+    } catch (e) {
+      debugPrint('Biometric login error: $e');
+      return 'Error';
+    }
+  }
+
+  // fills the session from the server's login answer (same for password and fingerprint)
+  Future<void> _apply(dynamic data, String username) async {
+    _isLoggedIn = true;
+    _username = username;
+    _tradeName = data['tradeName'] ?? '';
+    _fullName = data['fullName'] ?? '';
+    _branchCode = data['branchCode'] ?? '';
+    _userId = data['userId']?.toString() ?? '';
+    _employeeId = data['employeeId']?.toString() ?? '';
+    _fromDate = data['fromDate'] ?? '';
+    _toDate = data['toDate'] ?? '';
+    _branchType = data['branchType'] ?? '';
+    _clientNum = data['clientNum'] ?? '';
+    _tin = data['TIN'] ?? '';
+    _comId = data['comId']?.toString() ?? '';
+    _caid = data['CAID']?.toString() ?? '';
+    _userCount = data['userCount'] ?? '';
+    _workId = data['workId'] ?? '';
+    _userTypeId = data['userTypeId'] ?? '';
+    _designationId = data['designationId'] ?? '';
+    _position = data['position'] ?? '';
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_id', _userId);
+    await prefs.setString('user_name', _fullName);
+    await prefs.setString('user_count', _userCount);
   }
 
   Future<String> loginWithBiometric({required String caid}) async {

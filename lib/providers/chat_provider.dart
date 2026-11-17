@@ -62,9 +62,7 @@ class ChatProvider with ChangeNotifier {
 
     try {
       if (_currentUserId != null && _currentUserCount != null) {
-        final url = Uri.parse(
-          '${ApiConstants.baseUrl}/chat_get_conversations.php',
-        );
+        final url = Uri.parse('${ApiConstants.baseUrl}/chat_get_conversations');
         final response = await http.post(
           url,
           headers: {'Content-Type': 'application/json'},
@@ -148,9 +146,7 @@ class ChatProvider with ChangeNotifier {
           final otherUserId = parts[0];
           final otherUserType = parts[1];
 
-          final url = Uri.parse(
-            '${ApiConstants.baseUrl}/chat_get_messages.php',
-          );
+          final url = Uri.parse('${ApiConstants.baseUrl}/chat_get_messages');
           final response = await http.post(
             url,
             headers: {'Content-Type': 'application/json'},
@@ -239,7 +235,7 @@ class ChatProvider with ChangeNotifier {
           }
 
           final url = Uri.parse(
-            '${ApiConstants.baseUrl}/chat_send_message_new.php',
+            '${ApiConstants.baseUrl}/chat_send_message_new',
           );
           final response = await http.post(
             url,

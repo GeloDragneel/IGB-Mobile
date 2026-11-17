@@ -67,7 +67,7 @@ class _BiometricScreenState extends State<BiometricScreen>
 
       final response = await http.get(
         Uri.parse(
-          '${ApiConstants.baseUrl}/biometric_validation.php'
+          '${ApiConstants.baseUrl}/biometric_validation'
           '?keys=$key',
         ),
       );
@@ -161,11 +161,13 @@ class _BiometricScreenState extends State<BiometricScreen>
           'FP_${timestamp}_CAID_${authProvider.comId}_USER_${authProvider.userId}';
 
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/biometric_registration.php'),
+        Uri.parse('${ApiConstants.baseUrl}/biometric_registration'),
         body: {
           'CAID': authProvider.comId,
           'UserID': authProvider.userId,
           'FingerprintData': fingerprintData,
+          // staff (User2) are saved as "staff" so the fingerprint login opens the staff account
+          'UserType': authProvider.userCount == 'User2' ? 'staff' : 'client',
         },
       );
 

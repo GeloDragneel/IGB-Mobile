@@ -49,6 +49,9 @@ import 'screens/calendar.dart';
 import 'screens/collection.dart';
 import 'screens/deposit.dart';
 import 'screens/payment.dart';
+import 'screens/staff_profile_screen.dart';
+import 'widgets/navigation_drawer.dart';
+import 'constants/api_constants.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -129,6 +132,19 @@ class MyApp extends StatelessWidget {
               '/purchases': (context) => PurchasesScreen(),
               '/expenses': (context) => ExpensesScreen(),
               '/profile': (context) => ProfileScreen(),
+              // staff "My profile" (User2) — clients keep /profile
+              '/myProfile': (context) {
+                final auth = Provider.of<AuthProvider>(context, listen: false);
+                return StaffProfileScreen(
+                  drawer: const AppDrawer(selectedIndex: 8),
+                  api: HrApi(
+                    baseUrl: ApiConstants
+                        .baseUrl, // → /api/mobile/hr/... (MobileController::hr)
+                    params: {'userId': '${auth.userId}'},
+                    token: () async => null,
+                  ),
+                );
+              },
               '/accountingPeriod': (context) => AccountingPeriodScreen(),
               '/reports': (context) => ReportsScreen(),
               '/report_detail': (context) => ReportDetailScreen(

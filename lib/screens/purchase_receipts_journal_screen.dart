@@ -138,7 +138,7 @@ class _PurchaseReceiptsJournalScreenState
           final from = DateFormat('yyyy-MM').format(_dateFrom!);
           final to = DateFormat('yyyy-MM').format(_dateTo!);
           final url =
-              '${ApiConstants.baseUrl}/purchase_receipt_journal.php?userId=${auth.userId}&from=$from&to=$to';
+              '${ApiConstants.baseUrl}/purchase_receipt_journal?userId=${auth.userId}&from=$from&to=$to';
           try {
             final response = await http.get(Uri.parse(url));
             if (response.statusCode == 200) {

@@ -197,7 +197,7 @@ class _CollectionScreenState extends State<CollectionScreen>
   Future<void> _fetchPaymentTypes() async {
     try {
       final res = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/payment_type_list.php'),
+        Uri.parse('${ApiConstants.baseUrl}/payment_type_list'),
       );
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -227,7 +227,7 @@ class _CollectionScreenState extends State<CollectionScreen>
     try {
       final res = await http.get(
         Uri.parse(
-          '${ApiConstants.baseUrl}/collection_list.php'
+          '${ApiConstants.baseUrl}/collection_list'
           '?PaymentTypeID=$payTypeId',
         ),
       );
@@ -1028,7 +1028,7 @@ class _SubmitBottomSheetState extends State<_SubmitBottomSheet> {
   Future<void> _fetchBankNames() async {
     try {
       final res = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/bank_name_list.php'),
+        Uri.parse('${ApiConstants.baseUrl}/bank_name_list'),
       );
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -1057,7 +1057,7 @@ class _SubmitBottomSheetState extends State<_SubmitBottomSheet> {
     });
     try {
       final res = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/bank_account_list.php?ABAID=$abaId'),
+        Uri.parse('${ApiConstants.baseUrl}/bank_account_list?ABAID=$abaId'),
       );
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -1114,7 +1114,7 @@ class _SubmitBottomSheetState extends State<_SubmitBottomSheet> {
       final request =
           http.MultipartRequest(
               'POST',
-              Uri.parse('${ApiConstants.baseUrl}/bill_collection.php'),
+              Uri.parse('${ApiConstants.baseUrl}/bill_collection'),
             )
             ..fields['PaymentType'] = widget.selectedTypeId
             ..fields['CollectionType'] = ''
@@ -1990,7 +1990,7 @@ class _UploadDepositSheetState extends State<_UploadDepositSheet> {
 
     try {
       final uri = Uri.parse(
-        '${ApiConstants.baseUrl}/upload_collection_deposit.php',
+        '${ApiConstants.baseUrl}/upload_collection_deposit',
       );
 
       final ext = p.extension(_pickedFile!.path).toLowerCase();

@@ -1,919 +1,1892 @@
-import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:provider/provider.dart';
-import '../widgets/navigation_drawer.dart';
-import '../widgets/chat_bubble.dart';
-import '../providers/auth_provider.dart';
-import '../l10n/app_localizations.dart';
-import '../constants/api_constants.dart';
+import 'dart:math' as math;
 
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../constants/api_constants.dart';
+import '../l10n/app_localizations.dart';
+import '../providers/auth_provider.dart';
+import '../widgets/chat_bubble.dart';
+import '../widgets/navigation_drawer.dart';
+import 'accountingPeriod_screen.dart';
+
+/// Same look as the web Home: gradient hero with "Next BIR deadline", gradient KPI tiles
+/// with count-up numbers + sparklines, tax payables, Sales vs costs chart, cost ring, BIR calendar.
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
 
   @override
-  _DashboardState createState() => _DashboardState();
+  State<Dashboard> createState() => _DashboardState();
 }
 
-class _DashboardState extends State<Dashboard>
-    with SingleTickerProviderStateMixin {
+/* ---------- web palette ---------- */
+const _page = Color(0xFFF4F6FB);
+const _card = Colors.white;
+const _ink = Color(0xFF0F172A);
+const _muted = Color(0xFF64748B);
+const _faint = Color(0xFF94A3B8);
+const _line = Color(0xFFE2E8F0);
+const _indigo = Color(0xFF6366F1);
+const _orange = Color(0xFFF97316);
+
+const _gSales = [Color(0xFF6366F1), Color(0xFF8B5CF6)];
+const _gCosts = [Color(0xFFF97316), Color(0xFFEC4899)];
+const _gCust = [Color(0xFF10B981), Color(0xFF06B6D4)];
+const _gVend = [Color(0xFFEC4899), Color(0xFFF43F5E)];
+const _gVat = [Color(0xFF7C3AED), Color(0xFFA855F7)];
+const _gEwt = [Color(0xFFEA580C), Color(0xFFF59E0B)];
+const _gInc = [Color(0xFF0EA5E9), Color(0xFF2563EB)];
+const _gComp = [Color(0xFF059669), Color(0xFF14B8A6)];
+
+const _months = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+class _DashboardState extends State<Dashboard> {
   Map<String, dynamic> data = {};
   bool isLoading = true;
-  int _touchedPieIndex = -1;
-
-  late AnimationController _animController;
-  late Animation<double> _fadeAnim;
-
-  // Theme colors
-  static const _bg = Color(0xFF0B0F1A);
-  static const _card = Color(0xFF111827);
-  static const _accent = Color(0xFF6C63FF);
-  static const _accentGreen = Color(0xFF10B981);
-  static const _accentOrange = Color(0xFFF59E0B);
-  static const _accentBlue = Color(0xFF3B82F6);
-  static const _textPrimary = Color(0xFFF9FAFB);
-  static const _textSecondary = Color(0xFF9CA3AF);
-  static const _divider = Color(0xFF1F2937);
+  bool failed = false;
+  bool _vat = true;
+  bool _corp = true;
 
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _loadPrefs();
     fetchData();
   }
 
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
+  Future<void> _loadPrefs() async {
+    final p = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _vat = p.getBool('home.vat') ?? true;
+      _corp = p.getBool('home.corp') ?? true;
+    });
   }
+
+  Future<void> _savePref(String k, bool v) async =>
+      (await SharedPreferences.getInstance()).setBool(k, v);
 
   Future<void> fetchData() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
+    await PeriodStore.restore(
+      auth,
+    ); // cached Accounting Period, same as the web
+    final url =
+        '${ApiConstants.baseUrl}/dashboard?userId=${auth.userId}&from=${auth.fromDate}&to=${auth.toDate}';
     try {
-      final response = await http.get(
-        Uri.parse(
-          '${ApiConstants.baseUrl}/dashboard.php'
-          '?userId=${auth.userId}&from=${auth.fromDate}&to=${auth.toDate}',
-        ),
-      );
-      if (response.statusCode == 200) {
-        setState(() {
-          data = json.decode(response.body);
-          isLoading = false;
-        });
-        _animController.forward();
-      } else {
-        setState(() => isLoading = false);
-      }
+      final res = await http.get(Uri.parse(url));
+      if (!mounted) return;
+      setState(() {
+        if (res.statusCode == 200) {
+          data = json.decode(res.body);
+          failed = false;
+        } else {
+          failed = true;
+        }
+        isLoading = false;
+      });
     } catch (e) {
-      setState(() => isLoading = false);
+      debugPrint('DASHBOARD ERROR: $e');
+      if (mounted)
+        setState(() {
+          isLoading = false;
+          failed = true;
+        });
     }
   }
 
-  String formatNumber(dynamic number) {
-    if (number == null) return '0';
-    double value = 0;
-    if (number is num) {
-      value = number.toDouble();
-    } else if (number is String) {
-      value = double.tryParse(number) ?? 0;
+  /* ---------- helpers ---------- */
+  double _d(dynamic v) =>
+      v is num ? v.toDouble() : double.tryParse('${v ?? ''}') ?? 0;
+  Map<String, dynamic> _m(dynamic v) =>
+      v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
+  List _l(dynamic v) => v is List ? v : const [];
+
+  // web shape: { sales:{total,count,vat}, buy:{purchases,expenses,count,vat}, trend:[{label,sales,costs}],
+  //              top_customers, recent, attention, payables:{ar,ap,vat,ewt,comp}, income_tax }
+  bool get _web => data['sales'] is Map;
+  double get _salesTotal =>
+      _web ? _d(_m(data['sales'])['total']) : _d(data['totalSales']);
+  int get _salesCount => _d(_m(data['sales'])['count']).round();
+  double get _purch =>
+      _web ? _d(_m(data['buy'])['purchases']) : _d(data['totalPurchases']);
+  double get _exp =>
+      _web ? _d(_m(data['buy'])['expenses']) : _d(data['totalExpenses']);
+  double get _costs => _purch + _exp;
+  int get _buyCount => _d(_m(data['buy'])['count']).round();
+  Map<String, dynamic> get _pay => _m(data['payables']);
+
+  /// [{label, sales, costs}]
+  List<Map<String, dynamic>> get _trend {
+    if (data['trend'] is List) {
+      return _l(data['trend'])
+          .map(
+            (t) => {
+              'label': '${t['label'] ?? t['month'] ?? ''}',
+              'sales': _d(t['sales']),
+              'costs': _d(t['costs']),
+            },
+          )
+          .toList();
     }
-    if (value >= 1e9) return '${(value / 1e9).toStringAsFixed(1)}B';
-    if (value >= 1e6) return '${(value / 1e6).toStringAsFixed(1)}M';
-    if (value >= 1e3) return '${(value / 1e3).toStringAsFixed(1)}K';
-    return value.toStringAsFixed(0);
+    final s = _l(data['monthlySales']),
+        p = _l(data['monthlyPurchases']),
+        e = _l(data['monthlyExpenses']);
+    return List.generate(
+      s.length,
+      (i) => {
+        'label': '${s[i]['month']}'.split(' ').first,
+        'sales': _d(s[i]['sales']),
+        'costs':
+            (i < p.length ? _d(p[i]['purchases']) : 0.0) +
+            (i < e.length ? _d(e[i]['expenses']) : 0.0),
+      },
+    );
   }
 
-  double _toDouble(dynamic value) {
-    if (value is num) return value.toDouble();
-    if (value is String) return double.tryParse(value) ?? 0;
-    return 0;
-  }
+  bool get _zh => AppLocalizations.of(context).locale.languageCode == 'zh';
+  String _t(String en, String zh) => _zh ? zh : en;
 
-  String _translateMonth(String monthStr) {
-    // Parse month strings like "Mar 2026" and translate to Chinese
-    final parts = monthStr.split(' ');
-    if (parts.length != 2) return monthStr;
-
-    final monthAbbr = parts[0].toLowerCase();
-    final year = parts[1];
-
-    final monthMap = {
-      'jan': AppLocalizations.of(context).jan,
-      'feb': AppLocalizations.of(context).feb,
-      'mar': AppLocalizations.of(context).mar,
-      'apr': AppLocalizations.of(context).apr,
-      'may': AppLocalizations.of(context).may,
-      'jun': AppLocalizations.of(context).jun,
-      'jul': AppLocalizations.of(context).jul,
-      'aug': AppLocalizations.of(context).aug,
-      'sep': AppLocalizations.of(context).sep,
-      'oct': AppLocalizations.of(context).oct,
-      'nov': AppLocalizations.of(context).nov,
-      'dec': AppLocalizations.of(context).dec,
-    };
-
-    final translatedMonth = monthMap[monthAbbr] ?? parts[0];
-    // Use shorter format for Chinese to avoid layout issues
-    if (AppLocalizations.of(context).locale.languageCode == 'zh') {
-      return '$translatedMonth\n$year';
+  String _name() {
+    final auth = Provider.of<AuthProvider>(context, listen: false) as dynamic;
+    for (final get in [
+      () => auth.fullName,
+      () => auth.name,
+      () => auth.firstName,
+      () => auth.username,
+    ]) {
+      try {
+        final v = get();
+        if (v != null && '$v'.trim().isNotEmpty) {
+          final w = '$v'.trim().split(' ').first;
+          return w[0].toUpperCase() + w.substring(1).toLowerCase();
+        }
+      } catch (_) {
+        /* not on this provider */
+      }
     }
-    return '$translatedMonth $year';
+    return _t('there', '');
   }
 
+  String _range() {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    DateTime? p(dynamic s, bool end) {
+      final v = '$s'.trim();
+      final d = DateTime.tryParse(v.length == 7 ? '$v-01' : v);
+      if (d == null) return null;
+      return end && v.length == 7 ? DateTime(d.year, d.month + 1, 0) : d;
+    }
+
+    String f(DateTime? d, dynamic raw) => d == null
+        ? '$raw'
+        : '${_months[d.month - 1]} ${d.day.toString().padLeft(2, '0')}, ${d.year}';
+    return '${f(p(auth.fromDate, false), auth.fromDate)} – ${f(p(auth.toDate, true), auth.toDate)}';
+  }
+
+  /* =========================================================
+     UI
+     ========================================================= */
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: _bg,
-      appBar: _buildAppBar(),
+      backgroundColor: _page,
+      appBar: AppBar(
+        backgroundColor: _page,
+        surfaceTintColor: _page,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: _ink),
+        title: Text(
+          loc.dashboard,
+          style: const TextStyle(
+            color: _ink,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: _muted),
+            onPressed: fetchData,
+          ),
+        ],
+      ),
       drawer: AppDrawer(selectedIndex: 0),
       body: Stack(
         children: [
-          isLoading
-              ? const Center(child: CircularProgressIndicator(color: _accent))
-              : FadeTransition(
-                  opacity: _fadeAnim,
-                  child: RefreshIndicator(
-                    color: _accent,
-                    backgroundColor: _card,
-                    onRefresh: fetchData,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildGreeting(),
-                          const SizedBox(height: 20),
-                          _buildSummaryGrid(),
-                          const SizedBox(height: 28),
-                          _buildSectionHeader(
-                            AppLocalizations.of(context).revenueOverview,
-                            AppLocalizations.of(context).last6Months,
-                          ),
-                          const SizedBox(height: 14),
-                          _buildLineChart(),
-                          const SizedBox(height: 28),
-                          _buildSectionHeader(
-                            AppLocalizations.of(context).monthlySales,
-                            AppLocalizations.of(context).barChart,
-                          ),
-                          const SizedBox(height: 14),
-                          _buildBarChart(
-                            dataKey: 'monthlySales',
-                            valueKey: 'sales',
-                            maxKey: 'maxSales',
-                            color: _accent,
-                            secondColor: const Color(0xFF9C8FFF),
-                          ),
-                          const SizedBox(height: 28),
-                          _buildSectionHeader(
-                            AppLocalizations.of(context).costBreakdown,
-                            AppLocalizations.of(context).purchasesVsExpenses,
-                          ),
-                          const SizedBox(height: 14),
-                          _buildPieChart(),
-                          const SizedBox(height: 28),
-                          _buildSectionHeader(
-                            AppLocalizations.of(context).monthlyPurchases,
-                            AppLocalizations.of(context).barChart,
-                          ),
-                          const SizedBox(height: 14),
-                          _buildBarChart(
-                            dataKey: 'monthlyPurchases',
-                            valueKey: 'purchases',
-                            maxKey: 'maxPurchases',
-                            color: _accentBlue,
-                            secondColor: const Color(0xFF93C5FD),
-                          ),
-                          const SizedBox(height: 28),
-                          _buildSectionHeader(
-                            AppLocalizations.of(context).monthlyExpenses,
-                            AppLocalizations.of(context).barChart,
-                          ),
-                          const SizedBox(height: 14),
-                          _buildBarChart(
-                            dataKey: 'monthlyExpenses',
-                            valueKey: 'expenses',
-                            maxKey: 'maxExpenses',
-                            color: _accentOrange,
-                            secondColor: const Color(0xFFFCD34D),
-                          ),
-                        ],
-                      ),
+          RefreshIndicator(
+            color: _indigo,
+            onRefresh: fetchData,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(14, 4, 14, 96),
+              children: [
+                _hero(),
+                const SizedBox(height: 14),
+                if (failed)
+                  _note(
+                    Icons.error_outline_rounded,
+                    _t(
+                      "Couldn't load the dashboard. Pull down to try again.",
+                      '无法加载仪表板，请下拉重试。',
                     ),
+                    const Color(0xFFDC2626),
                   ),
-                ),
+                _tiles(loc),
+                const SizedBox(height: 10),
+                _taxTiles(),
+                _chips(),
+                const SizedBox(height: 14),
+                _chartCard(),
+                const SizedBox(height: 14),
+                _ringCard(loc),
+                const SizedBox(height: 14),
+                _birCard(),
+                _topCard(),
+                _recentCard(),
+              ],
+            ),
+          ),
           const ChatBubble(),
         ],
       ),
     );
   }
 
-  AppBar _buildAppBar() {
-    return AppBar(
-      backgroundColor: _bg,
-      elevation: 0,
-      centerTitle: false,
-      title: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: _accent.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.dashboard_rounded,
-              color: _accent,
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            AppLocalizations.of(context).dashboard,
-            style: const TextStyle(
-              color: _textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.refresh_rounded, color: _textSecondary),
-          onPressed: fetchData,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGreeting() {
-    final now = DateTime.now();
-    final hour = now.hour;
-    String greeting;
-    IconData greetIcon;
-    if (hour < 12) {
-      greeting = AppLocalizations.of(context).goodMorning;
-      greetIcon = Icons.wb_sunny_rounded;
-    } else if (hour < 17) {
-      greeting = AppLocalizations.of(context).goodAfternoon;
-      greetIcon = Icons.wb_cloudy_rounded;
-    } else {
-      greeting = AppLocalizations.of(context).goodEvening;
-      greetIcon = Icons.nightlight_round;
-    }
+  /* ---------- hero ---------- */
+  Widget _hero() {
+    final h = DateTime.now().hour;
+    final greet = h < 12
+        ? AppLocalizations.of(context).goodMorning
+        : h < 18
+        ? AppLocalizations.of(context).goodAfternoon
+        : AppLocalizations.of(context).goodEvening;
+    final sales = _salesTotal;
+    final costs = _costs;
+    final next = _deadlines()
+        .where((d) => d.days >= 0)
+        .cast<_Due?>()
+        .firstWhere((_) => true, orElse: () => null);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [_accent.withOpacity(0.15), _accentBlue.withOpacity(0.08)],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
+        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF4F46E5), Color(0xFF7C3AED), Color(0xFFDB2777)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _accent.withOpacity(0.2)),
-      ),
-      child: Row(
-        children: [
-          Icon(greetIcon, color: _accentOrange, size: 22),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                greeting,
-                style: const TextStyle(
-                  color: _textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Text(
-                AppLocalizations.of(context).businessOverview,
-                style: const TextStyle(
-                  color: _textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryGrid() {
-    final cards = [
-      _CardData(
-        AppLocalizations.of(context).totalSales,
-        formatNumber(data['totalSales']),
-        Icons.trending_up_rounded,
-        _accentGreen,
-        AppLocalizations.of(context).sales,
-      ),
-      _CardData(
-        AppLocalizations.of(context).purchases,
-        formatNumber(data['totalPurchases']),
-        Icons.shopping_bag_rounded,
-        _accentBlue,
-        AppLocalizations.of(context).bought,
-      ),
-      _CardData(
-        AppLocalizations.of(context).expenses,
-        formatNumber(data['totalExpenses']),
-        Icons.receipt_long_rounded,
-        _accentOrange,
-        AppLocalizations.of(context).spent,
-      ),
-      _CardData(
-        AppLocalizations.of(context).customers,
-        formatNumber(data['NoOfCustomer']),
-        Icons.people_alt_rounded,
-        _accent,
-        AppLocalizations.of(context).active,
-      ),
-      _CardData(
-        AppLocalizations.of(context).vendors,
-        formatNumber(data['noOfVendors']),
-        Icons.storefront_rounded,
-        const Color(0xFFEC4899),
-        AppLocalizations.of(context).partners,
-      ),
-      _CardData(
-        AppLocalizations.of(context).scanned,
-        formatNumber(data['totalScanned']),
-        Icons.qr_code_scanner_rounded,
-        const Color(0xFF14B8A6),
-        AppLocalizations.of(context).qrCodes,
-      ),
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        mainAxisExtent: 110,
-      ),
-      itemCount: cards.length,
-      itemBuilder: (_, i) => _buildStatCard(cards[i]),
-    );
-  }
-
-  Widget _buildStatCard(_CardData card) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: card.color.withOpacity(0.15)),
         boxShadow: [
           BoxShadow(
-            color: card.color.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: const Color(0xFF4F46E5).withOpacity(.30),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: card.color.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Icon(card.icon, color: card.color, size: 17),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: card.color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  card.badge,
-                  style: TextStyle(
-                    color: card.color,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                card.value,
-                style: const TextStyle(
-                  color: _textPrimary,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                card.title,
-                style: const TextStyle(
-                  color: _textSecondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title, String subtitle) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: _textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.16),
+              borderRadius: BorderRadius.circular(999),
             ),
-            Text(
-              subtitle,
-              style: const TextStyle(color: _textSecondary, fontSize: 12),
-            ),
-          ],
-        ),
-        Container(
-          width: 36,
-          height: 4,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [_accent, _accentBlue]),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLineChart() {
-    final salesList = data['monthlySales'] as List? ?? [];
-    final purchasesList = data['monthlyPurchases'] as List? ?? [];
-
-    List<FlSpot> salesSpots = [];
-    List<FlSpot> purchasesSpots = [];
-
-    for (int i = 0; i < salesList.length; i++) {
-      salesSpots.add(FlSpot(i.toDouble(), _toDouble(salesList[i]['sales'])));
-    }
-    for (int i = 0; i < purchasesList.length; i++) {
-      purchasesSpots.add(
-        FlSpot(i.toDouble(), _toDouble(purchasesList[i]['purchases'])),
-      );
-    }
-
-    final months = salesList
-        .map((m) => _translateMonth(m['month'].toString()))
-        .toList();
-
-    return _buildChartCard(
-      child: SizedBox(
-        height: 220,
-        child: LineChart(
-          LineChartData(
-            gridData: FlGridData(
-              show: true,
-              drawVerticalLine: false,
-              getDrawingHorizontalLine: (_) =>
-                  FlLine(color: _divider, strokeWidth: 1),
-            ),
-            borderData: FlBorderData(show: false),
-            titlesData: FlTitlesData(
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  getTitlesWidget: (val, _) {
-                    final idx = val.toInt();
-                    if (idx < 0 || idx >= months.length)
-                      return const SizedBox();
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        months[idx],
-                        style: TextStyle(
-                          color: _textSecondary,
-                          fontSize:
-                              AppLocalizations.of(
-                                    context,
-                                  ).locale.languageCode ==
-                                  'zh'
-                              ? 7
-                              : 9,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 42,
-                  getTitlesWidget: (val, _) => Text(
-                    '₱${formatNumber(val)}',
-                    style: const TextStyle(color: _textSecondary, fontSize: 9),
-                  ),
-                ),
-              ),
-              topTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-              rightTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-            ),
-            lineBarsData: [
-              LineChartBarData(
-                spots: salesSpots,
-                isCurved: true,
-                color: _accentGreen,
-                barWidth: 2.5,
-                dotData: FlDotData(
-                  show: true,
-                  getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
-                    radius: 4,
-                    color: _accentGreen,
-                    strokeWidth: 2,
-                    strokeColor: _card,
-                  ),
-                ),
-                belowBarData: BarAreaData(
-                  show: true,
-                  gradient: LinearGradient(
-                    colors: [
-                      _accentGreen.withOpacity(0.2),
-                      _accentGreen.withOpacity(0.0),
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                ),
-              ),
-              LineChartBarData(
-                spots: purchasesSpots,
-                isCurved: true,
-                color: _accentBlue,
-                barWidth: 2.5,
-                dotData: FlDotData(
-                  show: true,
-                  getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
-                    radius: 4,
-                    color: _accentBlue,
-                    strokeWidth: 2,
-                    strokeColor: _card,
-                  ),
-                ),
-                belowBarData: BarAreaData(
-                  show: true,
-                  gradient: LinearGradient(
-                    colors: [
-                      _accentBlue.withOpacity(0.15),
-                      _accentBlue.withOpacity(0.0),
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      legend: Row(
-        children: [
-          _buildLegendDot(_accentGreen, AppLocalizations.of(context).sales),
-          const SizedBox(width: 16),
-          _buildLegendDot(_accentBlue, AppLocalizations.of(context).purchases),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBarChart({
-    required String dataKey,
-    required String valueKey,
-    required String maxKey,
-    required Color color,
-    required Color secondColor,
-  }) {
-    final list = data[dataKey] as List? ?? [];
-    final maxY = _toDouble(data[maxKey]);
-    final months = list
-        .map((m) => _translateMonth(m['month'].toString()))
-        .toList();
-
-    return _buildChartCard(
-      child: SizedBox(
-        height: 200,
-        child: BarChart(
-          BarChartData(
-            alignment: BarChartAlignment.spaceAround,
-            maxY: maxY * 1.15,
-            barTouchData: BarTouchData(
-              enabled: true,
-              touchTooltipData: BarTouchTooltipData(
-                tooltipBgColor: const Color(0xFF1E293B),
-                tooltipRoundedRadius: 8,
-                getTooltipItem: (group, _, rod, __) => BarTooltipItem(
-                  '₱${formatNumber(rod.toY)}',
-                  const TextStyle(
-                    color: _textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            titlesData: FlTitlesData(
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  getTitlesWidget: (val, _) {
-                    final idx = val.toInt();
-                    if (idx < 0 || idx >= months.length)
-                      return const SizedBox();
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        months[idx],
-                        style: TextStyle(
-                          color: _textSecondary,
-                          fontSize:
-                              AppLocalizations.of(
-                                    context,
-                                  ).locale.languageCode ==
-                                  'zh'
-                              ? 7
-                              : 9,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 42,
-                  getTitlesWidget: (val, _) => Text(
-                    '₱${formatNumber(val)}',
-                    style: const TextStyle(color: _textSecondary, fontSize: 9),
-                  ),
-                ),
-              ),
-              topTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-              rightTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-            ),
-            gridData: FlGridData(
-              show: true,
-              drawVerticalLine: false,
-              getDrawingHorizontalLine: (_) =>
-                  FlLine(color: _divider, strokeWidth: 1),
-            ),
-            borderData: FlBorderData(show: false),
-            barGroups: List.generate(list.length, (i) {
-              final val = _toDouble(list[i][valueKey]);
-              return BarChartGroupData(
-                x: i,
-                barRods: [
-                  BarChartRodData(
-                    toY: val,
-                    gradient: LinearGradient(
-                      colors: [color, secondColor],
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                    ),
-                    width: 16,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(6),
-                    ),
-                  ),
-                ],
-              );
-            }),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPieChart() {
-    final totalPurchases = _toDouble(data['totalPurchases']);
-    final totalExpenses = _toDouble(data['totalExpenses']);
-    final total = totalPurchases + totalExpenses;
-
-    final sections = [
-      PieChartSectionData(
-        value: totalPurchases,
-        title: total > 0
-            ? '${(totalPurchases / total * 100).toStringAsFixed(1)}%'
-            : '',
-        color: _accentBlue,
-        radius: _touchedPieIndex == 0 ? 70 : 60,
-        titleStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      PieChartSectionData(
-        value: totalExpenses,
-        title: total > 0
-            ? '${(totalExpenses / total * 100).toStringAsFixed(1)}%'
-            : '',
-        color: _accentOrange,
-        radius: _touchedPieIndex == 1 ? 70 : 60,
-        titleStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    ];
-
-    return _buildChartCard(
-      child: Row(
-        children: [
-          SizedBox(
-            height: 180,
-            width: 180,
-            child: PieChart(
-              PieChartData(
-                sections: sections,
-                centerSpaceRadius: 45,
-                sectionsSpace: 3,
-                pieTouchData: PieTouchData(
-                  touchCallback: (event, response) {
-                    setState(() {
-                      if (!event.isInterestedForInteractions ||
-                          response == null ||
-                          response.touchedSection == null) {
-                        _touchedPieIndex = -1;
-                        return;
-                      }
-                      _touchedPieIndex =
-                          response.touchedSection!.touchedSectionIndex;
-                    });
-                  },
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _buildPieLegendItem(
-                  AppLocalizations.of(context).purchases,
-                  '₱${formatNumber(totalPurchases)}',
-                  _accentBlue,
-                  total > 0 ? totalPurchases / total : 0,
+                const Icon(
+                  Icons.calendar_month_rounded,
+                  color: Colors.white,
+                  size: 13,
                 ),
-                const SizedBox(height: 16),
-                _buildPieLegendItem(
-                  AppLocalizations.of(context).expenses,
-                  '₱${formatNumber(totalExpenses)}',
-                  _accentOrange,
-                  total > 0 ? totalExpenses / total : 0,
+                const SizedBox(width: 6),
+                Text(
+                  _range(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPieLegendItem(
-    String label,
-    String value,
-    Color color,
-    double ratio,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          const SizedBox(height: 10),
+          Text(
+            '$greet, ${_name()} 👋',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+              height: 1.2,
             ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: const TextStyle(color: _textSecondary, fontSize: 12),
+          ),
+          const SizedBox(height: 6),
+          isLoading
+              ? Text(
+                  _t('Loading your numbers…', '正在加载数据…'),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(.85),
+                    fontSize: 13.5,
+                  ),
+                )
+              : Text.rich(
+                  TextSpan(
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(.88),
+                      fontSize: 13.5,
+                      height: 1.4,
+                    ),
+                    children: [
+                      TextSpan(text: _t('You made ', '本期销售 ')),
+                      TextSpan(
+                        text: _money(sales),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      TextSpan(text: _t(' in sales and spent ', '，支出 ')),
+                      TextSpan(
+                        text: _money(costs),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      TextSpan(text: _t(' this period.', '。')),
+                    ],
+                  ),
+                ),
+          if (next != null) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(.16),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(.25)),
+              ),
+              child: Row(
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _t('NEXT BIR DEADLINE', '下一个 BIR 截止日'),
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(.75),
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: .8,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            '${next.days}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 30,
+                              fontWeight: FontWeight.w800,
+                              height: 1,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            next.days == 1 ? _t('day', '天') : _t('days', '天'),
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(.85),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${next.form} · ${next.period}',
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _fmtDate(next.due),
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(.8),
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        _urgencyPill(next.days, light: true),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            color: _textPrimary,
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 5),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: ratio,
-            backgroundColor: color.withOpacity(0.15),
-            valueColor: AlwaysStoppedAnimation(color),
-            minHeight: 5,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildChartCard({required Widget child, Widget? legend}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _divider),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (legend != null) ...[legend, const SizedBox(height: 14)],
-          child,
         ],
       ),
     );
   }
 
-  Widget _buildLegendDot(Color color, String label) {
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  /* ---------- KPI tiles: Sales · Purchases & expenses · Accounts receivable · Accounts payable ---------- */
+  Widget _tiles(AppLocalizations loc) {
+    final tr = _trend;
+    final List<double> sSpark = tr
+        .map<double>((t) => t['sales'] as double)
+        .toList();
+    final List<double> cSpark = tr
+        .map<double>((t) => t['costs'] as double)
+        .toList();
+    final ar = _m(_pay['ar']), ap = _m(_pay['ap']);
+    final hasAr = ar.isNotEmpty || ap.isNotEmpty;
+    String plural(int n, String one, String many) =>
+        '$n ${n == 1 ? one : many}';
+
+    final tiles = [
+      _Tile(
+        AppLocalizations.of(context).sales,
+        _salesTotal,
+        Icons.receipt_long_rounded,
+        _gSales,
+        sSpark,
+        money: true,
+        sub: _web
+            ? plural(_salesCount, _t('invoice', '张发票'), _t('invoices', '张发票'))
+            : null,
+      ),
+      _Tile(
+        _t('Purchases & expenses', '采购与费用'),
+        _costs,
+        Icons.shopping_cart_rounded,
+        _gCosts,
+        cSpark,
+        money: true,
+        sub: _web
+            ? plural(_buyCount, _t('record', '条记录'), _t('records', '条记录'))
+            : null,
+      ),
+      _Tile(
+        _t('Accounts receivable', '应收账款'),
+        _d(ar['total']),
+        Icons.account_balance_wallet_rounded,
+        _gCust,
+        null,
+        money: true,
+        missing: !hasAr,
+        sub: hasAr
+            ? '${plural(_d(ar['count']).round(), _t('unpaid invoice', '张未收发票'), _t('unpaid invoices', '张未收发票'))} · ${_t('no receipt yet', '未收款')}'
+            : null,
+      ),
+      _Tile(
+        _t('Accounts payable', '应付账款'),
+        _d(ap['total']),
+        Icons.shopping_bag_rounded,
+        _gVend,
+        null,
+        money: true,
+        missing: !hasAr,
+        sub: hasAr
+            ? '${plural(_d(ap['count']).round(), _t('unpaid bill', '张未付账单'), _t('unpaid bills', '张未付账单'))} · ${_t('no payment yet', '未付款')}'
+            : null,
+      ),
+    ];
+    return _grid(tiles.map(_tile).toList());
+  }
+
+  /* ---------- tax payables (web: /bir/payables + income tax) ---------- */
+  double? _taxVal(String key) {
+    final p = _m(_pay[key]);
+    if (key == 'comp')
+      return p.isEmpty
+          ? (data.containsKey('compPayable') ? _d(data['compPayable']) : null)
+          : (_d(p['returns']) > 0 ? _d(p['filed']) : null);
+    if (p.isNotEmpty) return _d(p['books']);
+    const flat = {'vat': 'vatPayable', 'ewt': 'ewtPayable'};
+    return data.containsKey(flat[key]) ? _d(data[flat[key]]) : null;
+  }
+
+  double? get _incomeTax => data.containsKey('income_tax')
+      ? _d(data['income_tax'])
+      : data.containsKey('incomeTaxPayable')
+      ? _d(data['incomeTaxPayable'])
+      : null;
+
+  bool get _hasTax =>
+      _pay.isNotEmpty ||
+      [
+        'vatPayable',
+        'ewtPayable',
+        'incomeTaxPayable',
+        'compPayable',
+        'income_tax',
+      ].any(data.containsKey);
+
+  Widget _taxTiles() {
+    String? pill(String key) {
+      final p = _m(_pay[key]);
+      if (p.isEmpty) return null;
+      if (_d(p['returns']) <= 0) return _t('Not filed', '未申报');
+      final bal = _d(p['balance']);
+      return bal > 0.009
+          ? '${_t('Unpaid', '未付')} ${_money(bal)}'
+          : _t('Filed · Paid', '已申报 · 已付');
+    }
+
+    _Tile tx(
+      String key,
+      String label,
+      String neg,
+      String hint,
+      double? v,
+      IconData i,
+      List<Color> g,
+    ) {
+      final val = v ?? 0;
+      return _Tile(
+        val < 0 ? neg : label,
+        val.abs(),
+        i,
+        g,
+        null,
+        money: true,
+        sub: hint,
+        pill: pill(key),
+        missing: v == null,
+      );
+    }
+
+    final t = [
+      tx(
+        'vat',
+        _t('VAT payable', '应付增值税'),
+        _t('Excess input VAT', '进项税留抵'),
+        _t('Output − Input VAT', '销项 − 进项'),
+        _taxVal('vat'),
+        Icons.description_outlined,
+        _gVat,
+      ),
+      tx(
+        'ewt',
+        _t('Withholding tax payable', '应付预扣税'),
+        _t('Withholding tax payable', '应付预扣税'),
+        _t('EWT on purchases & expenses', '采购及费用预扣'),
+        _taxVal('ewt'),
+        Icons.shopping_bag_outlined,
+        _gEwt,
+      ),
+      tx(
+        'income',
+        _t('Income tax payable', '应付所得税'),
+        _t('Income tax (excess credits)', '所得税（多缴抵免）'),
+        _t('From Income Tax Summary', '来自所得税汇总'),
+        _incomeTax,
+        Icons.bar_chart_rounded,
+        _gInc,
+      ),
+      tx(
+        'comp',
+        _t('Compensation payable', '应付薪资预扣'),
+        _t('Compensation payable', '应付薪资预扣'),
+        _t('Withholding on compensation (1601-C)', '薪资预扣 (1601-C)'),
+        _taxVal('comp'),
+        Icons.account_balance_wallet_outlined,
+        _gComp,
+      ),
+    ];
+    return _grid(t.map(_tile).toList());
+  }
+
+  /* ---------- needs attention ---------- */
+  Widget _chips() {
+    final a = _m(data['attention']);
+    if (a.isEmpty) return const SizedBox.shrink();
+    final sc = _m(a['scanned']);
+    final items = [
+      [
+        _d(a['tickets']),
+        _t('Pending tickets', '待处理工单'),
+        Icons.schedule_rounded,
+        const Color(0xFFD97706),
+      ],
+      [
+        _d(sc['sales']) + _d(sc['purchases']) + _d(sc['expenses']),
+        _t('Scanned receipts', '已扫描收据'),
+        Icons.description_outlined,
+        const Color(0xFF2563EB),
+      ],
+      [
+        _d(a['for_collection']),
+        _t('For collection', '待收款'),
+        Icons.account_balance_wallet_outlined,
+        const Color(0xFF059669),
+      ],
+      [
+        _d(a['for_payment']),
+        _t('For payment', '待付款'),
+        Icons.shopping_cart_outlined,
+        const Color(0xFFDB2777),
+      ],
+      [
+        _d(a['unaudited']),
+        _t('Not audited', '未审核'),
+        Icons.check_box_outlined,
+        const Color(0xFF7C3AED),
+      ],
+      [
+        _d(a['out_of_stock']),
+        _t('Out of stock', '缺货'),
+        Icons.warning_amber_rounded,
+        const Color(0xFFDC2626),
+      ],
+    ].where((c) => (c[0] as double) > 0).toList();
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final c in items)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: (c[3] as Color).withOpacity(.08),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: (c[3] as Color).withOpacity(.25)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(c[2] as IconData, size: 15, color: c[3] as Color),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${(c[0] as double).round()}',
+                    style: TextStyle(
+                      color: c[3] as Color,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    c[1] as String,
+                    style: const TextStyle(
+                      color: _ink,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _grid(List<Widget> items) => Column(
+    children: [
+      for (var i = 0; i < items.length; i++) ...[
+        if (i > 0) const SizedBox(height: 10),
+        items[i],
+      ],
+    ],
+  );
+
+  /// one metric per row: icon · label / value / note · sparkline or pill
+  Widget _tile(_Tile t) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          colors: t.colors,
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
         ),
-        const SizedBox(width: 5),
-        Text(
+        boxShadow: [
+          BoxShadow(
+            color: t.colors.first.withOpacity(.25),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.22),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(t.icon, color: Colors.white, size: 21),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(.92),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                isLoading
+                    ? Container(
+                        height: 20,
+                        width: 120,
+                        margin: const EdgeInsets.symmetric(vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(.25),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      )
+                    : t.missing
+                    ? const Text(
+                        '—',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      )
+                    : FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: _CountUp(
+                          value: t.value,
+                          format: t.money
+                              ? _money
+                              : (v) => v.round().toString(),
+                        ),
+                      ),
+                if ((t.sub ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    t.sub!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(.82),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (t.spark != null && t.spark!.length > 1) ...[
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 70,
+              height: 30,
+              child: CustomPaint(painter: _Spark(t.spark!)),
+            ),
+          ],
+          if (t.pill != null) ...[
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(.22),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                t.pill!,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /* ---------- Sales vs costs ---------- */
+  Widget _chartCard() {
+    final tr = _trend;
+    final n = tr.length;
+    final sales = List.generate(
+      n,
+      (i) => FlSpot(i.toDouble(), tr[i]['sales'] as double),
+    );
+    final costs = List.generate(
+      n,
+      (i) => FlSpot(i.toDouble(), tr[i]['costs'] as double),
+    );
+    final labels = tr.map((t) => '${t['label']}').toList();
+    final maxY =
+        [...sales, ...costs].fold<double>(1, (m, x) => math.max(m, x.y)) * 1.15;
+
+    return _cardBox(
+      title: _t('Sales vs costs', '销售与成本'),
+      trailing: Wrap(
+        spacing: 10,
+        children: [
+          _legend(_indigo, AppLocalizations.of(context).sales),
+          _legend(_orange, _t('Purchases & expenses', '采购与费用')),
+        ],
+      ),
+      child: SizedBox(
+        height: 210,
+        child: isLoading || n == 0
+            ? _skeleton(210)
+            : LineChart(
+                LineChartData(
+                  minY: 0,
+                  maxY: maxY,
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: maxY / 4,
+                    getDrawingHorizontalLine: (_) =>
+                        FlLine(color: _line, strokeWidth: 1),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 40,
+                        interval: maxY / 4,
+                        getTitlesWidget: (v, _) => Text(
+                          _short(v),
+                          style: const TextStyle(color: _faint, fontSize: 9.5),
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        interval: 1,
+                        getTitlesWidget: (v, _) {
+                          final i = v.toInt();
+                          if (i < 0 || i >= labels.length || v != i.toDouble())
+                            return const SizedBox();
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              labels[i],
+                              style: const TextStyle(
+                                color: _faint,
+                                fontSize: 10,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  lineBarsData: [
+                    _series(costs, _orange, 2.5),
+                    _series(sales, _indigo, 3),
+                  ],
+                ),
+              ),
+      ),
+    );
+  }
+
+  LineChartBarData _series(List<FlSpot> spots, Color c, double w) =>
+      LineChartBarData(
+        spots: spots,
+        isCurved: true,
+        preventCurveOverShooting: true,
+        color: c,
+        barWidth: w,
+        dotData: FlDotData(
+          show: true,
+          getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
+            radius: 3.5,
+            color: c,
+            strokeWidth: 2,
+            strokeColor: Colors.white,
+          ),
+        ),
+        belowBarData: BarAreaData(
+          show: true,
+          gradient: LinearGradient(
+            colors: [c.withOpacity(.35), c.withOpacity(0)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+      );
+
+  /* ---------- cost ring (like the web VAT ring) ---------- */
+  Widget _ringCard(AppLocalizations loc) {
+    final pv = _m(_pay['vat']);
+    final hasVat = pv['output'] != null || _m(data['sales']).containsKey('vat');
+    if (hasVat) return _vatCard(pv);
+    final p = _purch;
+    final e = _exp;
+    return _cardBox(
+      title: loc.costBreakdown,
+      child: isLoading
+          ? _skeleton(140)
+          : Row(
+              children: [
+                SizedBox(
+                  width: 140,
+                  height: 140,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CustomPaint(
+                        size: const Size(140, 140),
+                        painter: _Ring(p, e),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _t('Total', '合计'),
+                            style: const TextStyle(color: _muted, fontSize: 11),
+                          ),
+                          Text(
+                            _short(p + e),
+                            style: const TextStyle(
+                              color: _ink,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _ringRow(
+                        const [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+                        loc.purchases,
+                        p,
+                      ),
+                      const SizedBox(height: 12),
+                      _ringRow(
+                        const [Color(0xFF06B6D4), Color(0xFF10B981)],
+                        loc.expenses,
+                        e,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _ringRow(List<Color> g, String label, double v) => Row(
+    children: [
+      Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(colors: g),
+        ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
           label,
-          style: const TextStyle(color: _textSecondary, fontSize: 11),
+          style: const TextStyle(color: _muted, fontSize: 12.5),
+        ),
+      ),
+      Text(
+        _money(v),
+        style: const TextStyle(
+          color: _ink,
+          fontWeight: FontWeight.w700,
+          fontSize: 12.5,
+        ),
+      ),
+    ],
+  );
+
+  /// web: "VAT this period" – ring of Output vs Input VAT, Payable / Excess in the middle
+  Widget _vatCard(Map<String, dynamic> pv) {
+    final out = pv['output'] != null
+        ? _d(pv['output'])
+        : _d(_m(data['sales'])['vat']);
+    final inp = pv['input'] != null
+        ? _d(pv['input'])
+        : _d(_m(data['buy'])['vat']);
+    final payable = pv['books'] != null
+        ? _d(pv['books'])
+        : (data.containsKey('vat_payable')
+              ? _d(data['vat_payable'])
+              : out - inp);
+    return _cardBox(
+      title: _t('VAT this period', '本期增值税'),
+      child: isLoading
+          ? _skeleton(140)
+          : Row(
+              children: [
+                SizedBox(
+                  width: 140,
+                  height: 140,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CustomPaint(
+                        size: const Size(140, 140),
+                        painter: _Ring(out, inp),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            payable >= 0
+                                ? _t('Payable', '应付')
+                                : _t('Excess', '留抵'),
+                            style: const TextStyle(color: _muted, fontSize: 11),
+                          ),
+                          Text(
+                            '₱${_short(payable.abs())}',
+                            style: const TextStyle(
+                              color: _ink,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _ringRow(
+                        const [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+                        _t('Output VAT', '销项税'),
+                        out,
+                      ),
+                      const SizedBox(height: 12),
+                      _ringRow(
+                        const [Color(0xFF06B6D4), Color(0xFF10B981)],
+                        _t('Input VAT', '进项税'),
+                        inp,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  /// web: Top customers (bars)
+  Widget _topCard() {
+    final list = _l(data['top_customers']);
+    if (!_web) return const SizedBox.shrink();
+    final top = list.fold<double>(1, (m, c) => math.max(m, _d(c['total'])));
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: _cardBox(
+        title: _t('Top customers', '主要客户'),
+        child: list.isEmpty
+            ? Text(
+                _t('No sales in this period yet.', '本期暂无销售。'),
+                style: const TextStyle(color: _muted, fontSize: 13),
+              )
+            : Column(
+                children: [
+                  for (var i = 0; i < list.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 22,
+                                height: 22,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEEF2FF),
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                                child: Text(
+                                  '${i + 1}',
+                                  style: const TextStyle(
+                                    color: _indigo,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '${list[i]['name']}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: _ink,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '₱${_short(_d(list[i]['total']))}',
+                                style: const TextStyle(
+                                  color: _ink,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Stack(
+                              children: [
+                                Container(
+                                  height: 7,
+                                  color: const Color(0xFFF1F5F9),
+                                ),
+                                FractionallySizedBox(
+                                  widthFactor: (_d(list[i]['total']) / top)
+                                      .clamp(0, 1)
+                                      .toDouble(),
+                                  child: Container(
+                                    height: 7,
+                                    decoration: const BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Color(0xFF6366F1),
+                                          Color(0xFFEC4899),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '${_d(list[i]['invoices']).round()} ${_t('invoices', '张发票')}',
+                            style: const TextStyle(color: _faint, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  /// web: Recent invoices
+  Widget _recentCard() {
+    final list = _l(data['recent']);
+    if (!_web) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: _cardBox(
+        title: _t('Recent invoices', '最近发票'),
+        child: list.isEmpty
+            ? Text(
+                _t('No invoices yet.', '暂无发票。'),
+                style: const TextStyle(color: _muted, fontSize: 13),
+              )
+            : Column(
+                children: [
+                  for (final r in list)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 18,
+                            backgroundColor: const Color(0xFFEEF2FF),
+                            child: Text(
+                              '${r['customer'] ?? '?'}'.isEmpty
+                                  ? '?'
+                                  : '${r['customer']}'[0].toUpperCase(),
+                              style: const TextStyle(
+                                color: _indigo,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${r['customer'] ?? ''}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: _ink,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                Text(
+                                  [
+                                    _dateText(r['transaction_date']),
+                                    if ((r['status'] ?? '')
+                                        .toString()
+                                        .isNotEmpty)
+                                      '${r['status']}',
+                                  ].join(' · '),
+                                  style: const TextStyle(
+                                    color: _muted,
+                                    fontSize: 11.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            _money(_d(r['grand_total'])),
+                            style: const TextStyle(
+                              color: _ink,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  String _dateText(dynamic s) {
+    final d = DateTime.tryParse('$s');
+    return d == null ? '${s ?? ''}' : _fmtDate(d);
+  }
+
+  /* ---------- BIR calendar ---------- */
+  Widget _birCard() {
+    final list = _deadlines().where((d) => d.days >= -5).take(6).toList();
+    return _cardBox(
+      title: _t('BIR calendar', 'BIR 日历'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              _seg([_t('VAT', '增值税'), _t('Non-VAT', '非增值税')], _vat ? 0 : 1, (
+                i,
+              ) {
+                setState(() => _vat = i == 0);
+                _savePref('home.vat', i == 0);
+              }),
+              const SizedBox(width: 8),
+              _seg([_t('Corp', '公司'), _t('Indiv', '个人')], _corp ? 0 : 1, (i) {
+                setState(() => _corp = i == 0);
+                _savePref('home.corp', i == 0);
+              }),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (final d in list) _timelineRow(d),
+        ],
+      ),
+    );
+  }
+
+  Widget _timelineRow(_Due d) {
+    final c = _urgencyColor(d.days);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: c.withOpacity(.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border(left: BorderSide(color: c, width: 3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _line),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  _months[d.due.month - 1].toUpperCase(),
+                  style: TextStyle(
+                    color: c,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  '${d.due.day}',
+                  style: const TextStyle(
+                    color: _ink,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  d.form,
+                  style: const TextStyle(
+                    color: _ink,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13.5,
+                  ),
+                ),
+                Text(
+                  '${d.title} · ${d.period}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: _muted, fontSize: 11.5),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          _urgencyPill(d.days),
+        ],
+      ),
+    );
+  }
+
+  Widget _seg(List<String> opts, int on, ValueChanged<int> pick) => Container(
+    padding: const EdgeInsets.all(3),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF1F5F9),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < opts.length; i++)
+          GestureDetector(
+            onTap: () => pick(i),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: i == on ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: i == on
+                    ? [
+                        BoxShadow(
+                          color: _ink.withOpacity(.08),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Text(
+                opts[i],
+                style: TextStyle(
+                  color: i == on ? _indigo : _muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+
+  /* ---------- small pieces ---------- */
+  Widget _cardBox({
+    required String title,
+    Widget? trailing,
+    required Widget child,
+  }) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: _card,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: _line),
+      boxShadow: [
+        BoxShadow(
+          color: _ink.withOpacity(.04),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
         ),
       ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: _ink,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        if (trailing != null) ...[const SizedBox(height: 6), trailing],
+        const SizedBox(height: 14),
+        child,
+      ],
+    ),
+  );
+
+  Widget _legend(Color c, String l) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 9,
+        height: 9,
+        decoration: BoxDecoration(
+          color: c,
+          borderRadius: BorderRadius.circular(3),
+        ),
+      ),
+      const SizedBox(width: 5),
+      Text(l, style: const TextStyle(color: _muted, fontSize: 11.5)),
+    ],
+  );
+
+  Widget _skeleton(double h) => Container(
+    height: h,
+    decoration: BoxDecoration(
+      color: const Color(0xFFF1F5F9),
+      borderRadius: BorderRadius.circular(12),
+    ),
+  );
+
+  Widget _note(IconData i, String t, Color c) => Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: c.withOpacity(.08),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: c.withOpacity(.3)),
+    ),
+    child: Row(
+      children: [
+        Icon(i, color: c, size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(t, style: TextStyle(color: c, fontSize: 13)),
+        ),
+      ],
+    ),
+  );
+
+  Color _urgencyColor(int days) => days < 0
+      ? const Color(0xFFDC2626)
+      : days <= 3
+      ? const Color(0xFFEA580C)
+      : days <= 10
+      ? const Color(0xFFD97706)
+      : const Color(0xFF059669);
+
+  Widget _urgencyPill(int days, {bool light = false}) {
+    final txt = days < 0
+        ? _t('${-days}d late', '逾期 ${-days} 天')
+        : days == 0
+        ? _t('Today', '今天')
+        : days == 1
+        ? _t('Tomorrow', '明天')
+        : _t('in $days days', '$days 天后');
+    final c = _urgencyColor(days);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: light ? Colors.white.withOpacity(.22) : c.withOpacity(.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        txt,
+        style: TextStyle(
+          color: light ? Colors.white : c,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
+  }
+
+  String _money(num v) {
+    final neg = v < 0;
+    final parts = v.abs().toStringAsFixed(2).split('.');
+    final s = parts[0].replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ',',
+    );
+    return '${neg ? '−' : ''}₱$s.${parts[1]}';
+  }
+
+  String _short(num n) {
+    final v = n.abs();
+    final s = v >= 1e9
+        ? '${(v / 1e9).toStringAsFixed(1)}B'
+        : v >= 1e6
+        ? '${(v / 1e6).toStringAsFixed(1)}M'
+        : v >= 1e3
+        ? '${(v / 1e3).toStringAsFixed(1)}K'
+        : v.toStringAsFixed(0);
+    return '${n < 0 ? '−' : ''}$s';
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${_months[d.month - 1]} ${d.day.toString().padLeft(2, '0')}, ${d.year}';
+
+  /* ---------- BIR filing calendar (same rules as the web Home) ---------- */
+  List<_Due> _deadlines() {
+    final out = <_Due>[];
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    DateTime at(int y, int m, int day) {
+      final last = DateTime(y, m + 1, 0).day; // m is 1-based here
+      return DateTime(y, m, math.min(day, last));
+    }
+
+    for (var y = now.year - 1; y <= now.year + 1; y++) {
+      for (var m = 1; m <= 12; m++) {
+        final label = '${_months[m - 1]} $y';
+        final ny = m == 12 ? y + 1 : y;
+        final nm = m == 12 ? 1 : m + 1;
+        out.add(
+          _Due(
+            '1601-C',
+            _t('Withholding Tax on Compensation', '薪资预扣税'),
+            at(ny, nm, 10),
+            label,
+          ),
+        );
+        out.add(
+          _Due(
+            '0619-E',
+            _t('Expanded Withholding Tax remittance', '扩大预扣税缴纳'),
+            at(ny, nm, 10),
+            label,
+          ),
+        );
+        if (m % 3 == 0) {
+          final q = m ~/ 3;
+          final ql = 'Q$q $y';
+          out.add(
+            _Due(
+              '1601-EQ',
+              _t('Quarterly Expanded Withholding Tax + QAP', '季度扩大预扣税 + QAP'),
+              at(ny, nm, 31),
+              ql,
+            ),
+          );
+          if (_vat) {
+            out.add(
+              _Due(
+                '2550Q',
+                _t('Quarterly VAT Return + SAWT', '季度增值税申报 + SAWT'),
+                at(ny, nm, 25),
+                ql,
+              ),
+            );
+            out.add(
+              _Due(
+                'SLSP',
+                _t('Summary List of Sales & Purchases', '销售与采购汇总表'),
+                at(ny, nm, 25),
+                ql,
+              ),
+            );
+          } else {
+            out.add(
+              _Due(
+                '2551Q',
+                _t('Quarterly Percentage Tax', '季度百分比税'),
+                at(ny, nm, 25),
+                ql,
+              ),
+            );
+          }
+          if (q <= 3) {
+            final mm = [5, 8, 11][q - 1];
+            out.add(
+              _corp
+                  ? _Due(
+                      '1702Q',
+                      _t('Quarterly Income Tax (Corporation)', '季度所得税（公司）'),
+                      at(y, mm, 29),
+                      ql,
+                    )
+                  : _Due(
+                      '1701Q',
+                      _t('Quarterly Income Tax (Individual)', '季度所得税（个人）'),
+                      at(y, mm, 15),
+                      ql,
+                    ),
+            );
+          }
+        }
+      }
+      out.add(
+        _Due(
+          '1604-C',
+          _t('Annual Info Return – Compensation (Alphalist)', '年度薪资信息申报'),
+          at(y, 1, 31),
+          'CY ${y - 1}',
+        ),
+      );
+      out.add(
+        _Due(
+          '1604-E',
+          _t('Annual Info Return – Expanded Withholding', '年度扩大预扣信息申报'),
+          at(y, 3, 1),
+          'CY ${y - 1}',
+        ),
+      );
+      out.add(
+        _corp
+            ? _Due(
+                '1702-RT',
+                _t('Annual Income Tax (Corporation)', '年度所得税（公司）'),
+                at(y, 4, 15),
+                'CY ${y - 1}',
+              )
+            : _Due(
+                '1701',
+                _t('Annual Income Tax (Individual)', '年度所得税（个人）'),
+                at(y, 4, 15),
+                'CY ${y - 1}',
+              ),
+      );
+    }
+    for (final d in out) {
+      d.days = d.due.difference(today).inDays;
+    }
+    final list = out.where((d) => d.days >= -5 && d.days <= 120).toList()
+      ..sort((a, b) => a.due.compareTo(b.due));
+    return list;
   }
 }
 
-class _CardData {
-  final String title;
-  final String value;
+/* =========================================================
+   pieces
+   ========================================================= */
+class _Tile {
+  _Tile(
+    this.label,
+    this.value,
+    this.icon,
+    this.colors,
+    this.spark, {
+    this.money = false,
+    this.sub,
+    this.pill,
+    this.missing = false,
+  });
+  final String label;
+  final double value;
   final IconData icon;
-  final Color color;
-  final String badge;
+  final List<Color> colors;
+  final List<double>? spark;
+  final bool money;
+  final String? sub;
+  final String? pill;
+  final bool missing;
+}
 
-  const _CardData(this.title, this.value, this.icon, this.color, this.badge);
+class _Due {
+  _Due(this.form, this.title, this.due, this.period);
+  final String form;
+  final String title;
+  final DateTime due;
+  final String period;
+  int days = 0;
+}
+
+/// number that counts up to its value (₱0 → ₱45,942,161.84), like the web
+class _CountUp extends StatelessWidget {
+  const _CountUp({required this.value, required this.format});
+  final double value;
+  final String Function(num) format;
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0, end: value),
+    duration: const Duration(milliseconds: 1200),
+    curve: Curves.easeOutCubic,
+    builder: (_, v, __) => Text(
+      format(v),
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 20,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -.3,
+        fontFeatures: [FontFeature.tabularFigures()],
+      ),
+    ),
+  );
+}
+
+class _Spark extends CustomPainter {
+  _Spark(this.values);
+  final List<double> values;
+
+  @override
+  void paint(Canvas canvas, Size s) {
+    final mx = values.fold<double>(1, math.max);
+    final mn = math.min(0.0, values.fold<double>(0, math.min));
+    Offset pt(int i) => Offset(
+      i / (values.length - 1) * s.width,
+      s.height -
+          ((values[i] - mn) / ((mx - mn) == 0 ? 1 : (mx - mn))) *
+              (s.height - 4) -
+          2,
+    );
+    final line = Path()..moveTo(pt(0).dx, pt(0).dy);
+    for (var i = 1; i < values.length; i++) {
+      line.lineTo(pt(i).dx, pt(i).dy);
+    }
+    final area = Path.from(line)
+      ..lineTo(s.width, s.height)
+      ..lineTo(0, s.height)
+      ..close();
+    canvas.drawPath(area, Paint()..color = Colors.white.withOpacity(.18));
+    canvas.drawPath(
+      line,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _Spark old) => old.values != values;
+}
+
+class _Ring extends CustomPainter {
+  _Ring(this.a, this.b);
+  final double a, b;
+
+  @override
+  void paint(Canvas canvas, Size s) {
+    const stroke = 16.0;
+    final rect = Rect.fromLTWH(
+      stroke / 2,
+      stroke / 2,
+      s.width - stroke,
+      s.height - stroke,
+    );
+    final total = math.max(1.0, a + b);
+    final aSweep = 2 * math.pi * (a / total);
+    Paint p(List<Color> c) => Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round
+      ..shader = SweepGradient(colors: c).createShader(rect);
+    canvas.drawArc(
+      rect,
+      0,
+      2 * math.pi,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke
+        ..color = const Color(0x33949EB8),
+    );
+    if (a > 0)
+      canvas.drawArc(
+        rect,
+        -math.pi / 2,
+        aSweep,
+        false,
+        p(const [Color(0xFF8B5CF6), Color(0xFFEC4899)]),
+      );
+    if (b > 0)
+      canvas.drawArc(
+        rect,
+        -math.pi / 2 + aSweep,
+        2 * math.pi - aSweep,
+        false,
+        p(const [Color(0xFF06B6D4), Color(0xFF10B981)]),
+      );
+  }
+
+  @override
+  bool shouldRepaint(covariant _Ring old) => old.a != a || old.b != b;
 }
